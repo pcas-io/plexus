@@ -472,7 +472,7 @@ export function renderGraphPage({ currentUser, csrfToken }: GraphPageOptions): s
     <div style="margin-bottom:8px">
       <div style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-subtle);margin-bottom:2px">Context</div>
       <select id="graph-context-filter" style="width:100%;padding:3px 6px;font-size:0.77rem;background:var(--color-page);border:1px solid var(--color-border);border-radius:0.31rem;color:var(--color-body);cursor:pointer">
-        <option value="">alle</option>
+        <option value="">all</option>
       </select>
     </div>
 

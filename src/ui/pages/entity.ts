@@ -73,7 +73,7 @@ export function renderEntityDetail(opts: EntityDetailOptions): string {
   const shareButton = entity.kind === 'secret'
     ? '<span class="subtle" style="font-size:0.77rem">Secrets koennen nicht geteilt werden.</span>'
     : `
-        <button type="button" class="btn btn-small" id="plexus-share-btn" data-entity-id="${escapeHtml(entity.id)}">Teilen (Step-Up Passkey)</button>
+        <button type="button" class="btn btn-small" id="plexus-share-btn" data-entity-id="${escapeHtml(entity.id)}">Share (step-up passkey)</button>
         <div id="share-status" class="subtle" style="margin-top:0.62rem;font-size:0.85rem;display:none"></div>
         <div id="share-result" class="alert alert-success" style="margin-top:0.77rem;display:none"></div>`;
 

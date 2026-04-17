@@ -45,7 +45,7 @@ interface EntitiesListOptions {
 export function renderEntitiesList(opts: EntitiesListOptions): string {
   const { currentUser, entities, kinds, filterQuery, filterKind, filterContext, filterStatus, filterShowTasks, contexts, csrfToken } = opts;
 
-  const kindOptions = ['<option value="">Alle Kinds</option>']
+  const kindOptions = ['<option value="">All kinds</option>']
     .concat(
       kinds.map(
         (k) =>
@@ -54,7 +54,7 @@ export function renderEntitiesList(opts: EntitiesListOptions): string {
     )
     .join('');
 
-  const contextOptions = ['<option value="">Alle Kontexte</option>']
+  const contextOptions = ['<option value="">All contexts</option>']
     .concat(
       contexts.map(
         (ctx) =>
@@ -137,7 +137,7 @@ export function renderEntitiesList(opts: EntitiesListOptions): string {
         <input type="checkbox" name="show_tasks" value="1"${filterShowTasks ? ' checked' : ''}>
         <span>Tasks</span>
       </label>
-      <button type="submit" class="btn">Suchen</button>
+      <button type="submit" class="btn">Search</button>
       <a href="/entities" class="btn btn-ghost">Reset</a>
     </form>
 
