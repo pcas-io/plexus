@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck-and-build:
+    name: Typecheck + Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      # In-memory SurrealDB for the Skill Forge publish-contract
+      # integration test (Pre-Mortem R3, plexus snpxgkukysdc2erfwrcl).
+      # One shared container; each test file uses its own namespace so
+      # files cannot cross-contaminate.
+      - name: Start SurrealDB (in-memory, for integration tests)
+        run: |
+          docker run -d --name test-surrealdb --rm \
+            -p 127.0.0.1:8000:8000 \
+            surrealdb/surrealdb:v2.1 \
+            start --user root --pass root --bind 0.0.0.0:8000 --log warn memory
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/health > /dev/null; then
+              echo "surrealdb ready after ${i} attempts"
+              exit 0
+            fi
+            sleep 0.5
+          done
+          echo "surrealdb did not become ready in 30s" >&2
+          docker logs test-surrealdb >&2 || true
+          exit 1
+
+      - name: Test
+        env:
+          PLEXUS_TEST_SURREAL_URL: http://127.0.0.1:8000
+          PLEXUS_TEST_SURREAL_USER: root
+          PLEXUS_TEST_SURREAL_PASS: root
+        run: npx vitest run --passWithNoTests
+
+      - name: Stop SurrealDB
+        if: always()
+        run: docker stop -t 2 test-surrealdb || true
+
+      # INFO-1 from the 2026-04-10 security audit: fail the build on
+      # moderate+ production CVEs so new findings block the PR that
+      # introduces them. Dev dependencies are excluded via --omit=dev —
+      # vitest/vite/esbuild never ship, blocking on their advisories
+      # would churn the pipeline without adding security.
+      - name: Production audit
+        run: npm audit --omit=dev --audit-level=moderate
+
+  secret-scan:
+    name: Secret Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Gitleaks
+        run: |
+          GITLEAKS_VERSION="8.24.3"
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar xz
+          chmod +x gitleaks
+
+      - name: Run Gitleaks
+        run: ./gitleaks detect --source . --verbose
+
+  docker-build:
+    name: Docker Build (no push)
+    runs-on: ubuntu-latest
+    needs: typecheck-and-build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: plexus:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

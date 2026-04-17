@@ -1,0 +1,52 @@
+{
+  "name": "plexus",
+  "version": "0.1.0",
+  "description": "plexus (_graph) — on-prem, agent-first, typed knowledge graph. Read-only for humans, write-only for agents, via MCP.",
+  "license": "Apache-2.0",
+  "homepage": "https://pcas.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pcas-io/plexus.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pcas-io/plexus/issues"
+  },
+  "keywords": [
+    "knowledge-graph",
+    "mcp",
+    "model-context-protocol",
+    "agent",
+    "llm",
+    "surrealdb",
+    "hono",
+    "oauth",
+    "webauthn",
+    "passkey"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.13",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@simplewebauthn/server": "^13.3.0",
+    "hono": "^4.12.12",
+    "surrealdb": "^2.0.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

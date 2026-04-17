@@ -1,0 +1,94 @@
+# plexus (_graph) — on-prem knowledge graph
+#
+# Works with any Docker Compose-compatible host. The Coolify/Traefik-
+# specific labels and external `coolify` network below are optional —
+# remove them if you use plain Docker, a different reverse proxy, or
+# Kubernetes. The stable `plexus_net` alias for surrealdb is required
+# so the worker can reach the database by a deterministic hostname.
+
+services:
+  surrealdb:
+    image: surrealdb/surrealdb:v2.1
+    restart: unless-stopped
+    # Run as root so rocksdb can write into the mounted volume regardless
+    # of how Coolify initialises the named-volume directory. The official
+    # surrealdb image has no hard user, so this is a deliberate explicit
+    # choice, not a surprise.
+    user: "0:0"
+    command:
+      - start
+      - --log
+      - info
+      - --username
+      - ${PLEXUS_SURREAL_USER:?required}
+      - --password
+      - ${PLEXUS_SURREAL_PASS:?required}
+      - --bind
+      - 0.0.0.0:8000
+      - rocksdb:/data/plexus.db
+    volumes:
+      - surrealdb_data:/data
+    networks:
+      plexus_net:
+        aliases:
+          - surrealdb
+
+  plexus:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      surrealdb:
+        condition: service_started
+    environment:
+      PLEXUS_PORT: ${PLEXUS_PORT:-8787}
+      PLEXUS_BASE_URL: ${PLEXUS_BASE_URL:-http://localhost:8787}
+      PLEXUS_LOG_LEVEL: ${PLEXUS_LOG_LEVEL:-info}
+      PLEXUS_ADMIN_TOKEN: ${PLEXUS_ADMIN_TOKEN:?required}
+      PLEXUS_OAUTH_SECRET: ${PLEXUS_OAUTH_SECRET:?required}
+      PLEXUS_COOKIE_SECRET: ${PLEXUS_COOKIE_SECRET:?required}
+      PLEXUS_SURREAL_URL: http://surrealdb:8000
+      PLEXUS_SURREAL_USER: ${PLEXUS_SURREAL_USER:?required}
+      PLEXUS_SURREAL_PASS: ${PLEXUS_SURREAL_PASS:?required}
+      PLEXUS_SURREAL_NS: ${PLEXUS_SURREAL_NS:-plexus}
+      PLEXUS_SURREAL_DB: ${PLEXUS_SURREAL_DB:-main}
+      PLEXUS_RP_ID: ${PLEXUS_RP_ID:-localhost}
+      PLEXUS_RP_NAME: ${PLEXUS_RP_NAME:-Plexus}
+    expose:
+      - "8787"
+    # Network order matters: Docker Compose passes the FIRST network to
+    # `docker run`, subsequent ones are attached via `docker network connect`
+    # after the container already exists. Listing `coolify` first means the
+    # container is in Traefik's network from the first instant — avoids the
+    # race where Traefik polls a just-created container that has only
+    # plexus_net attached, caches "no reachable backend", and then never
+    # re-evaluates after the coolify join lands.
+    networks:
+      - coolify
+      - plexus_net
+    # Coolify auto-generates all traefik.http.routers.* labels from its app
+    # config, but it does NOT set `traefik.docker.network`. When a container
+    # lives on multiple networks (here: coolify + plexus_net + the auto
+    # per-app network), Traefik must be told explicitly which one to use to
+    # reach the backend — otherwise the auto-pick can race with Docker's
+    # network-join order during a rolling deploy and 504 until a manual
+    # stop+deploy. This label pins the backend network deterministically.
+    # (9.4 fix — Coolify Webhook Traefik-Label-Refresh.)
+    labels:
+      - "traefik.docker.network=coolify"
+
+networks:
+  plexus_net:
+    driver: bridge
+  # Traefik (coolify-proxy) lives in this network. Explicitly attaching
+  # the plexus service removes the race where Coolify tries to post-start
+  # join the container and sometimes fails, causing 504s after deploys.
+  coolify:
+    external: true
+
+volumes:
+  # Named volume holding the SurrealDB RocksDB data directory. Coolify
+  # creates and manages the backing directory on the host; plexus does
+  # not depend on the specific path.
+  surrealdb_data:
