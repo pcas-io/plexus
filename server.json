@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.pcas-io/plexus",
+  "description": "Typed on-prem knowledge graph for AI agents — read-only for humans, write-only for agents via MCP.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/pcas-io/plexus",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://{host}/mcp",
+      "variables": {
+        "host": {
+          "description": "Hostname of your self-hosted plexus instance, e.g. plexus.example.com. plexus is on-prem by design; there is no shared public instance."
+        }
+      }
+    }
+  ]
+}
