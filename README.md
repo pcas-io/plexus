@@ -273,11 +273,17 @@ openssl rand -hex 32
 
 ### Docker Compose (recommended)
 
-The shipped `docker-compose.yml` brings up the plexus worker and SurrealDB together. It works with plain Docker, Coolify, or any compose-compatible host.
+The shipped `docker-compose.yml` brings up the plexus worker and SurrealDB together. The worker is published on `127.0.0.1:8787` — localhost only — so a typo in a public DNS record cannot accidentally expose the dashboard. Put a reverse proxy in front for anything beyond your own machine.
 
 ```bash
 docker compose up -d
 docker compose logs -f plexus
+```
+
+For Coolify hosts, stack the Coolify overlay on top to attach the external `coolify` Traefik network and pin the routing label:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.coolify.yml up -d
 ```
 
 ### Behind a reverse proxy

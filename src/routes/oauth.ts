@@ -404,11 +404,9 @@ export function oauthRoutes(deps: OAuthDeps): Hono {
 
     // Every failure path writes an oauth_token_invalid row with a reason
     // tag so post-hoc diagnosis via /admin/backup is possible even when
-    // the container stdout buffer is too short to help (Coolify's log
-    // endpoint only surfaces the first ~15 stdout lines). Payload stays
-    // compact — no secrets, just the reason + the bits we need to
-    // reproduce. Audit benefit is the main reason to keep this after
-    // the initial bug hunt is over.
+    // the container stdout buffer has been rotated or truncated. Payload
+    // stays compact — no secrets, just the reason + the bits we need to
+    // reproduce.
     const logFailure = async (reason: string, extra: Record<string, unknown> = {}) => {
       try {
         await deps.activity.create({

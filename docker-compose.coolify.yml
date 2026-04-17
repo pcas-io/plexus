@@ -1,0 +1,28 @@
+# Coolify overlay for plexus (_graph).
+#
+# Adds the external `coolify` bridge network and the Traefik-routing label
+# needed for Coolify's built-in reverse proxy to reach the worker. Used
+# together with the base compose file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.coolify.yml up -d
+#
+# Notes:
+#   - The base file publishes 127.0.0.1:8787, which is harmless on a
+#     Coolify host because the external port is not exposed. Override to
+#     [] here if you want to suppress the host publish entirely.
+#   - Coolify auto-generates traefik.http.routers.* labels from its app
+#     config, but does NOT set traefik.docker.network. We pin it here so
+#     Traefik picks the coolify network deterministically even when the
+#     container is attached to multiple networks.
+
+services:
+  plexus:
+    networks:
+      - coolify
+      - plexus_net
+    labels:
+      - "traefik.docker.network=coolify"
+
+networks:
+  coolify:
+    external: true
