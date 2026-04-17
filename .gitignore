@@ -6,6 +6,8 @@
 *.env
 env.local
 *.env.local
+# Tracked template is safe — contains only placeholders, no real secrets.
+!.env.example
 secrets/
 secrets.*
 *.secret
