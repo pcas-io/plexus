@@ -82,7 +82,7 @@ export function renderUsersList({ currentUser, users, contexts, kinds, csrfToken
         <div class="form-row">
           <div class="form-field">
             <label>Name</label>
-            <input type="text" name="name" required maxlength="64" autocomplete="off" pattern="[a-zA-Z0-9_\\.\\-]+" placeholder="nico">
+            <input type="text" name="name" required maxlength="64" autocomplete="off" pattern="[a-zA-Z0-9_\\.\\-]+" placeholder="alice">
           </div>
           <div class="form-field">
             <label>Rolle</label>

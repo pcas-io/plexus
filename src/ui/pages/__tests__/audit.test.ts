@@ -8,12 +8,12 @@ import { describe, expect, test } from 'vitest';
 import { renderAuditPage } from '../audit.js';
 import type { ActivityLogEntry } from '../../../db/repositories/activity_log.js';
 
-const USER = { name: 'nico', is_admin: true };
+const USER = { name: 'alice', is_admin: true };
 
 const SAMPLE_ENTRY: ActivityLogEntry = {
   id: 'activity_log:abc',
   timestamp: '2026-04-16T16:19:34.664Z',
-  user_name: 'nico',
+  user_name: 'alice',
   action: 'update_entity',
   target_type: 'entity',
   target_id: 'entities:tckt3piig1ggql0tzpws',
@@ -32,7 +32,7 @@ function render(entries: ActivityLogEntry[]): string {
     offset: 0,
     filter: {},
     actionOptions: ['update_entity', 'save_entity'],
-    userOptions: ['nico'],
+    userOptions: ['alice'],
     csrfToken: 'csrf-test',
   });
 }

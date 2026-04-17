@@ -31,7 +31,7 @@ export function renderBootstrapPage({ csrfToken, flash }: BootstrapOptions): str
       <form method="POST" action="/bootstrap">
         <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
         <label>Admin-Name</label>
-        <input type="text" name="name" required autofocus autocomplete="off" maxlength="64" pattern="[a-zA-Z0-9_\\.\\-]+" placeholder="nico">
+        <input type="text" name="name" required autofocus autocomplete="off" maxlength="64" pattern="[a-zA-Z0-9_\\.\\-]+" placeholder="admin">
         <button type="submit">Admin anlegen</button>
       </form>`
     : '';
