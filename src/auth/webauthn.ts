@@ -23,6 +23,35 @@ export interface WebAuthnConfig {
   readonly origin: string;
 }
 
+/**
+ * Returns the list of origins simplewebauthn should accept.
+ *
+ * WebAuthn's secure-context rule: HTTPS is always fine; HTTP is only
+ * fine for hostname `localhost`. The Browser treats `localhost` and
+ * `127.0.0.1` interchangeably as secure loopback addresses, but
+ * simplewebauthn's matcher only recognises `localhost` and rejects
+ * `http://127.0.0.1:...` as "insecure protocol". Users who open the
+ * dashboard at one loopback spelling while the server is configured
+ * for the other therefore fail enrollment with a confusing error.
+ *
+ * We expand a configured loopback origin to accept both spellings so
+ * either URL works. Non-loopback HTTP is left untouched — that is a
+ * genuine misconfiguration the caller should see.
+ */
+export function buildExpectedOrigins(origin: string): string[] {
+  let parsed: URL;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    return [origin];
+  }
+  const isHttp = parsed.protocol === 'http:';
+  const isLoopback = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+  if (!isHttp || !isLoopback) return [origin];
+  const port = parsed.port ? `:${parsed.port}` : '';
+  return [`http://localhost${port}`, `http://127.0.0.1${port}`];
+}
+
 interface ChallengeEntry {
   readonly challenge: string;
   readonly userId: string;
@@ -33,8 +62,11 @@ const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
 export class WebAuthnService {
   private readonly challenges = new Map<string, ChallengeEntry>();
+  private readonly expectedOrigins: string[];
 
-  constructor(private readonly config: WebAuthnConfig) {}
+  constructor(private readonly config: WebAuthnConfig) {
+    this.expectedOrigins = buildExpectedOrigins(config.origin);
+  }
 
   private cleanExpired(): void {
     const now = Date.now();
@@ -84,7 +116,7 @@ export class WebAuthnService {
     const verification = await verifyRegistrationResponse({
       response,
       expectedChallenge: entry.challenge,
-      expectedOrigin: this.config.origin,
+      expectedOrigin: this.expectedOrigins,
       expectedRPID: this.config.rpId,
       requireUserVerification: true,
     });
@@ -169,7 +201,7 @@ export class WebAuthnService {
     const verification = await verifyAuthenticationResponse({
       response,
       expectedChallenge: entry.challenge,
-      expectedOrigin: this.config.origin,
+      expectedOrigin: this.expectedOrigins,
       expectedRPID: this.config.rpId,
       credential: {
         id: storedCredential.id,
@@ -203,7 +235,7 @@ export class WebAuthnService {
     const verification = await verifyAuthenticationResponse({
       response,
       expectedChallenge: entry.challenge,
-      expectedOrigin: this.config.origin,
+      expectedOrigin: this.expectedOrigins,
       expectedRPID: this.config.rpId,
       credential: {
         id: storedCredential.id,

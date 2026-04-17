@@ -39,9 +39,26 @@ process.on('unhandledRejection', (reason) => {
 
 const config = loadConfig();
 
+function warnIfInsecureOrigin(baseUrl: string): void {
+  try {
+    const u = new URL(baseUrl);
+    if (u.protocol === 'https:') return;
+    const loopback = u.hostname === 'localhost' || u.hostname === '127.0.0.1';
+    if (loopback) return;
+    console.warn(
+      `[plexus] WARNING: PLEXUS_BASE_URL="${baseUrl}" is http but not loopback. ` +
+        `WebAuthn (passkeys) will reject this origin with "insecure protocol". ` +
+        `For production, put plexus behind TLS; for local, use http://localhost:PORT or http://127.0.0.1:PORT.`
+    );
+  } catch {
+    console.warn(`[plexus] WARNING: PLEXUS_BASE_URL="${baseUrl}" is not a valid URL.`);
+  }
+}
+
 async function main(): Promise<void> {
   console.log('[plexus] starting v0.0.4...');
   console.log(`[plexus] base url: ${config.baseUrl}`);
+  warnIfInsecureOrigin(config.baseUrl);
   console.log(`[plexus] log level: ${config.logLevel}`);
   console.log(`[plexus] surreal url: ${config.surreal.url}`);
   console.log(`[plexus] surreal ns/db: ${config.surreal.namespace}/${config.surreal.database}`);
