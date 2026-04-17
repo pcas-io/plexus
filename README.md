@@ -32,6 +32,17 @@ Traditional wikis are built for human readers: free-form prose, hand-curated lin
 
 plexus reverses the audience. The **LLM is the reader and the writer**. Each page is a typed record instead of a paragraph, each link is a named relation instead of a hyperlink, and each edit is an atomic MCP call instead of a markdown diff. The UI shows you the same graph your agent sees — but your agent does the curation.
 
+This is the same pattern Andrej Karpathy sketched in his ["The LLM wiki" gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) (April 2026, 5000+ stars): instead of stateless RAG against raw documents on every query, an LLM *compiles* knowledge into a structured, cross-referenced wiki once and keeps it up to date. plexus is that pattern on infrastructure:
+
+| Karpathy's LLM wiki | plexus |
+|---|---|
+| Raw sources (unchanging) | External documents the agent reads with `web_fetch`, file I/O, … |
+| Wiki (typed markdown, curated) | Typed **entities** + named **edges** in a graph the agent writes via MCP |
+| Schema (conventions in `CLAUDE.md` / `AGENTS.md`) | `list_kinds` + `list_relations` registries, enforced at the MCP boundary |
+| ingest → compile → reflect → query → lint | `search_entities` → `save_entity` / `update_entity` → `link_entities` → `get_related` → `lint_graph` |
+
+Karpathy calls the gist an "idea file" — a vendor-neutral prompt pattern. plexus gives it a production backend: typed storage, optimistic locking, temporal edges, multi-user auth, audit log.
+
 What that buys you:
 
 - **One source of truth across sessions.** Your agent loads the context at the start of every conversation. You don't re-explain yourself.
@@ -52,6 +63,7 @@ What that buys you:
 **Wire an agent to it**
 - [Connecting an agent](#connecting-an-agent) — Claude web / Code / Desktop snippets
 - [Agent system-prompt template](#agent-system-prompt-template) — copy-paste block that makes an LLM use plexus correctly
+- [Example: ingesting a source](#example-ingesting-a-source) — a Karpathy-style LLM-wiki ingest walked end-to-end against plexus
 
 **Reference**
 - [MCP tools](#mcp-tools) · [What the graph knows](#what-the-graph-knows) · [Authentication](#authentication) · [Sharing](#sharing) · [Search](#search)
@@ -332,6 +344,73 @@ the full markdown body.
 - **Domain-specific** agent (e.g. a research summariser): `permission=write`, `kinds: [note, concept, fact]` only.
 
 The dashboard's `/tokens` page generates any of these in two clicks.
+
+---
+
+## Example: ingesting a source
+
+Here's what the Karpathy-style ingest loop looks like when an agent actually runs it against plexus. The user drops an article; the agent walks the five phases of the LLM-wiki pattern using only plexus tools, and leaves the graph richer in under a minute.
+
+**User:** "Pull this in: `https://example.com/engineering/feature-flags-at-scale`"
+
+**1 — Classify & orient.** The agent fetches the source, classifies it as `article`, and checks what already exists so it doesn't duplicate:
+
+```ts
+search_entities({ query: "feature flags progressive rollout", limit: 10 })
+// → 2 concepts, 1 ADR, 1 fact in the dev context
+```
+
+**2 — Extract.** For an article the agent pulls key claims, new facts, decisions, and anything that contradicts existing entities.
+
+**3 — Write typed entities.** One kind per intent; update existing ones instead of creating duplicates.
+
+```ts
+// New concept — the specific rollout pattern the article introduces
+save_entity({
+  kind: "concept", context: "dev",
+  title: "Shadow-flag pre-rollout (Acme pattern)",
+  body: "# Shadow flag pre-rollout\n..."
+})
+// → entities:ab12...
+
+// New atomic fact with provenance-grade attributes
+save_entity({
+  kind: "fact", context: "dev",
+  title: "Acme reduced rollout-related incidents by 62% after adopting shadow flags",
+  attributes: { severity: "info", category: "benchmark", source_year: 2026 }
+})
+// → entities:cd34...
+
+// Existing concept gets enriched, not duplicated
+update_entity({
+  id: "entities:prev-concept-id",
+  expected_version: 3,
+  body: body + "\n\n## Update 2026-04-17\n..."
+})
+```
+
+**4 — Anchor provenance.** Every ingest creates exactly one `note` as the provenance anchor, and every extracted entity links back to it with `derived_from`:
+
+```ts
+save_entity({
+  kind: "note", context: "dev",
+  title: "Source: Acme — Feature flags at scale",
+  body: "## Metadata\nURL, date, author.\n\n## Summary\n2–3 sentences.\n\n## Derived entities\n- Shadow-flag pre-rollout (Acme pattern)\n- Acme reduced rollout-related incidents by 62% ..."
+})
+// → entities:ef56...
+
+link_entities({ from_id: "entities:ab12...", to_id: "entities:ef56...", relation: "derived_from" })
+link_entities({ from_id: "entities:cd34...", to_id: "entities:ef56...", relation: "derived_from" })
+link_entities({ from_id: "entities:prev-concept-id", to_id: "entities:ef56...", relation: "mentions" })
+```
+
+**5 — Dual output.** Reply to the user **and** the graph update — both happen in the same turn, not as a chore for later.
+
+**Agent's reply:**
+
+> Ingested Acme's feature-flag post. 2 new entities, 1 existing concept enriched, 3 `derived_from` / `mentions` edges to the new source note (`entities:ef56…`). Shadow-flag pre-rollout doesn't contradict the existing rollout ADR — they're complementary.
+
+**Six months later**, someone asks your agent "how did we end up on shadow flags?" Your agent does `search_entities({ query: "shadow flag rollout" })`, `get_related` on the hit to pull the source note and the ADR that cited it, and answers from the compiled graph instead of re-reading the raw HTML. No re-summarisation. No "as you might recall." The wiki already holds the answer.
 
 ---
 
