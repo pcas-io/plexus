@@ -33,13 +33,9 @@ Runs in Docker Compose on your own hardware. Apache-2.0 licensed.
 git clone https://github.com/pcas-io/plexus.git
 cd plexus
 
-# 2. Configure
-cp .env.example .env
-# Generate secrets for the three required fields:
-for var in PLEXUS_ADMIN_TOKEN PLEXUS_OAUTH_SECRET PLEXUS_COOKIE_SECRET; do
-  echo "$var=$(openssl rand -hex 32)" >> .env
-done
-# Set a strong PLEXUS_SURREAL_PASS in .env
+# 2. Configure — writes .env with fresh 32-byte secrets for all four
+#    required fields (admin token, OAuth/cookie secrets, SurrealDB password).
+scripts/bootstrap_env.sh
 
 # 3. Start
 docker compose up -d
