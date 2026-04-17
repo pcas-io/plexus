@@ -10,9 +10,9 @@
   "remotes": [
     {
       "type": "streamable-http",
-      "url": "https://{host}/mcp",
+      "url": "https://{plexus_host}/mcp",
       "variables": {
-        "host": {
+        "plexus_host": {
           "description": "Hostname of your self-hosted plexus instance, e.g. plexus.example.com. plexus is on-prem by design; there is no shared public instance."
         }
       }
