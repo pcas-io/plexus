@@ -40,6 +40,27 @@ What that buys you:
 
 ---
 
+## Contents
+
+**Understand it**
+- [Use cases](#use-cases) — seven concrete scenarios plexus is built for
+
+**Run it**
+- [Quickstart](#quickstart) — Docker Compose up in under two minutes
+- [Create your admin user (first run)](#create-your-admin-user-first-run) — the bootstrap walk-through, including where to find the admin token
+
+**Wire an agent to it**
+- [Connecting an agent](#connecting-an-agent) — Claude web / Code / Desktop snippets
+- [Agent system-prompt template](#agent-system-prompt-template) — copy-paste block that makes an LLM use plexus correctly
+
+**Reference**
+- [MCP tools](#mcp-tools) · [What the graph knows](#what-the-graph-knows) · [Authentication](#authentication) · [Sharing](#sharing) · [Search](#search)
+
+**Operate it**
+- [Architecture](#architecture) · [Configuration](#configuration) · [Self-hosting](#self-hosting) · [Development](#development) · [Security](#security)
+
+---
+
 ## Use cases
 
 **Persistent agent memory.** Every conversation starts with `context_load`, so your assistant remembers which ADRs you've already made, which projects are live, and which tasks you finished yesterday. No `"as you might recall…"` prompt engineering.
@@ -65,8 +86,12 @@ What that buys you:
 git clone https://github.com/pcas-io/plexus.git
 cd plexus
 
-# 2. Configure — writes .env with fresh 32-byte secrets for all four
-#    required fields (admin token, OAuth/cookie secrets, SurrealDB password).
+# 2. Configure — generates .env from the template with fresh 32-byte
+#    secrets for all four required fields:
+#      PLEXUS_ADMIN_TOKEN      ← you'll use this once, to bootstrap
+#      PLEXUS_OAUTH_SECRET     ← OAuth state signing
+#      PLEXUS_COOKIE_SECRET    ← dashboard session cookie signing
+#      PLEXUS_SURREAL_PASS     ← SurrealDB root password
 scripts/bootstrap_env.sh
 
 # 3. Start
@@ -76,28 +101,54 @@ docker compose up -d
 open http://localhost:8787
 ```
 
+The **admin token** you'll need for the very first login is in `.env`:
+
+```bash
+grep '^PLEXUS_ADMIN_TOKEN=' .env
+```
+
+Copy that hex value — the [next section](#create-your-admin-user-first-run) walks through the one-time bootstrap.
+
 Full configuration reference is in [`.env.example`](./.env.example). Deployment notes for Coolify, plain Docker, and Kubernetes are below.
 
 ---
 
-## First run — the bootstrap flow
+## Create your admin user (first run)
 
-plexus boots on an empty database with no user. The `PLEXUS_ADMIN_TOKEN` from your `.env` is used **once** to create the first admin account, then steps aside.
+plexus boots on an empty database with no user. You'll use your `PLEXUS_ADMIN_TOKEN` **once** to create the first admin account, then it steps aside.
 
-1. Open the dashboard (`http://localhost:8787` by default). plexus notices there is no user yet and redirects to `/bootstrap`.
-2. Enter an admin name (letters, digits, `_`, `-`, `.`). Submit. The admin token is matched via the login-cookie path — you never paste it into the browser.
-3. plexus creates the admin user and shows a personal token (`pt_…`) **exactly once**. Copy it into a password manager right now.
-4. Click **Continue to login**. You land on `/auth/login`.
-5. Paste the `pt_` token. plexus sees you have no passkey yet and shows the enrollment screen.
-6. Click **Register passkey now** — confirm with Touch ID / Face ID / Windows Hello / YubiKey.
-7. plexus **automatically rotates the token** and shows the new one. The initial token is now dead. Overwrite your password-manager entry with the new token.
-8. Click **Sign in with new token**. Paste the new token, tap the passkey again — you land on `/home`.
+### 1. Find your admin token
 
-After this one-time setup, `PLEXUS_ADMIN_TOKEN` is only used for admin-plane endpoints (backup, reset). It is **rejected on MCP** and on dashboard login.
+The `scripts/bootstrap_env.sh` script you ran in the Quickstart wrote the token into your `.env`. Read it back:
 
-**Why the rotation?** The initial token is a one-shot invitation code. If anything intercepted it during handoff — mail, chat, a screen share — rotation makes that capture worthless the moment you sign in. For additional users you create later via `/users`, the same admin→user handoff + first-enroll rotation protects them the same way.
+```bash
+grep '^PLEXUS_ADMIN_TOKEN=' .env
+# PLEXUS_ADMIN_TOKEN=<64-char-hex>
+```
 
-After the bootstrap, the `/help` page inside the dashboard covers everything else: MCP integration, token scoping, passkey management, share links, graph view.
+Copy the hex value after the `=`. You'll paste it *once* into the dashboard; after the bootstrap, plexus rejects the admin token on MCP and on normal login.
+
+### 2. Walk the flow
+
+| # | What you do | What plexus does |
+|---|---|---|
+| 1 | Open `http://localhost:8787` | Shows the login form |
+| 2 | Paste the admin token, click **Continue** | Recognises "admin token + no admin user exists" → redirects to `/bootstrap` |
+| 3 | Enter an admin name (letters, digits, `_`, `-`, `.`), **Create admin** | Creates the admin user, shows a **new personal token** `pt_…` **once**. Copy it. |
+| 4 | Click **Continue to login** | Back to `/auth/login`, pending-auth cookie set |
+| 5 | Paste the `pt_` token | Shows the passkey-enrollment screen |
+| 6 | **Register passkey now**, confirm with Touch ID / Face ID / Windows Hello / YubiKey | Stores the passkey, then **rotates the `pt_` token** and shows the new one **once**. Overwrite your password-manager entry. |
+| 7 | **Sign in with new token**, paste new token, tap passkey | Lands you on `/home` |
+
+From here on, the admin token is only used for admin-plane endpoints (backup, reset). It's **rejected on MCP** and on normal dashboard login.
+
+### Why the rotation?
+
+The initial tokens (admin + first `pt_`) are one-shot invitation codes. If anything intercepted them — mail, chat, a screen share — rotation makes that capture worthless the moment you sign in. For additional users you create via `/users`, the same admin→user handoff + first-enroll rotation protects them the same way.
+
+### Where to go next
+
+The `/help` page inside the dashboard covers everything else: MCP integration, token scoping, passkey management, share links, graph view.
 
 ![plexus help page — first-run bootstrap documentation](./docs/screenshots/05-help.png)
 
