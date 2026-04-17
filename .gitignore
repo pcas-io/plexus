@@ -136,4 +136,6 @@ plexus-pitch-onepager.docx
 # as working artefacts — the canonical record of architectural
 # decisions lives in plexus as kind=decision / kind=document.
 # Keep them on disk for the current session, do not commit.
-docs/
+docs/*
+# Exception: published screenshots for the README.
+!docs/screenshots/

@@ -8,6 +8,8 @@ Part of the [pcas.io](https://pcas.io) product line.
 [![Node](https://img.shields.io/badge/node-%E2%89%A522-informational)](./package.json)
 [![CI](https://github.com/pcas-io/plexus/actions/workflows/ci.yml/badge.svg)](https://github.com/pcas-io/plexus/actions/workflows/ci.yml)
 
+![plexus graph view — Apollo-program demo graph](./docs/screenshots/02-graph.png)
+
 ---
 
 ## TL;DR
@@ -19,10 +21,40 @@ In plexus, every piece of information is a **typed entity** — `concept`, `deci
 That gets you three things:
 
 1. Your agent doesn't have to ask you — it just builds, with strict kind-and-relation discipline.
-2. The wiki never goes stale, because lint, supersede, and provenance are part of the workflow.
+2. The graph never goes stale, because lint, supersede, and provenance are part of the workflow.
 3. You can share a single idea, not your graph — passkey-gated one-shot links that burn on first click.
 
 Runs in Docker Compose on your own hardware. Apache-2.0 licensed.
+
+### Think of it as a wiki, but for LLMs
+
+Traditional wikis are built for human readers: free-form prose, hand-curated links, a tree of pages that rots the moment you stop grooming it. Put an LLM in front of one and the first thing the LLM does is ask you to summarise it.
+
+plexus reverses the audience. The **LLM is the reader and the writer**. Each page is a typed record instead of a paragraph, each link is a named relation instead of a hyperlink, and each edit is an atomic MCP call instead of a markdown diff. The UI shows you the same graph your agent sees — but your agent does the curation.
+
+What that buys you:
+
+- **One source of truth across sessions.** Your agent loads the context at the start of every conversation. You don't re-explain yourself.
+- **One source of truth across agents.** Claude web, Claude Code, Claude Desktop, Le Chat, Gemini — whoever connects speaks the same graph.
+- **One source of truth across humans.** Multi-user out of the box, scoped tokens per person, shared `project` containers, audit log.
+
+---
+
+## Use cases
+
+**Persistent agent memory.** Every conversation starts with `context_load`, so your assistant remembers which ADRs you've already made, which projects are live, and which tasks you finished yesterday. No `"as you might recall…"` prompt engineering.
+
+**Cross-agent handoff.** Claude Code finishes a feature, writes a handoff-fact. Next morning Claude web picks up the same context, knows which commits shipped, what's still open. Zero re-briefing.
+
+**Team memory for small groups.** Spin up one instance, issue scoped personal tokens per person, share a `project` container. Read-only dashboard for everybody, agents write for everybody. No Notion, no wiki, no Slack-archaeology.
+
+**Decision archaeology.** Every ADR is a first-class `decision` entity with `supersedes` / `derived_from` edges. A year later you can trace *why* the F-1 engine stayed, *what* the Apollo 13 post-mortem triggered, and *which* design superseded which. Time-travel queries via `get_related(as_of: "2026-01-01")`.
+
+**Incident → fix loop.** A production incident becomes a `fact` with `severity: high`. The mitigation ADR links `triggered_by` that fact. The runbook `documents` the ADR. When you hire someone six months later, they read one graph walk instead of twelve Slack threads.
+
+**Literature / research digest.** An agent ingests a paper, creates a `note` for the source, extracts `concept` and `fact` entities, attaches `mentions` edges. You query the graph by topic; every claim has provenance back to a `derived_from` note.
+
+**Private "second brain" that an agent actually uses.** Capture with `inbox_item`, promote to `task`/`concept`/`fact` during a weekly review, archive with `supersedes`. Your notes are structured without you having to touch a form.
 
 ---
 
@@ -66,6 +98,8 @@ After this one-time setup, `PLEXUS_ADMIN_TOKEN` is only used for admin-plane end
 **Why the rotation?** The initial token is a one-shot invitation code. If anything intercepted it during handoff — mail, chat, a screen share — rotation makes that capture worthless the moment you sign in. For additional users you create later via `/users`, the same admin→user handoff + first-enroll rotation protects them the same way.
 
 After the bootstrap, the `/help` page inside the dashboard covers everything else: MCP integration, token scoping, passkey management, share links, graph view.
+
+![plexus help page — first-run bootstrap documentation](./docs/screenshots/05-help.png)
 
 ---
 
@@ -127,6 +161,127 @@ plexus exposes 15 tools.
 
 Every tool enforces scope at the handler boundary: `requireWrite()`, `checkContext()`, `checkKind()`, and `rejectSecret()`. `kind=secret` is unreachable via MCP and filtered out of every read response.
 
+![plexus dashboard home — projects, activity feed, context filter](./docs/screenshots/01-home.png)
+
+---
+
+## Agent system-prompt template
+
+Paste this block into any MCP-capable agent (Claude web custom integration, Claude Code CLI, Claude Desktop, Le Chat, a custom SDK harness). It's written tight on purpose — every line earns its place. Model-agnostic; works with any LLM that supports MCP tool-calling.
+
+````markdown
+# Plexus is your long-term memory
+
+You have access to **plexus**, a persistent on-prem knowledge graph,
+over MCP. Treat it as authoritative memory across sessions. Never
+re-derive what the graph already knows; never let the graph drift.
+
+## Every session
+
+1. **Start:** call `context_load` once. Read the 20 most recent
+   entities and the kinds/relations registries. No other lookups
+   until you know what's already there.
+2. **Before writing:** call `search_entities` (BM25, 2–4 keywords) to
+   avoid duplicates. If you find a close match, `update_entity` with
+   `expected_version`; do not create a new one.
+3. **Writing new knowledge:** `save_entity` with the right `kind`.
+   Pick deliberately — kind drives how other agents will query it.
+   - `concept` — pattern, idea, domain term
+   - `decision` — an ADR (see "ADR discipline" below)
+   - `fact` — atomic statement, incident, milestone
+   - `project` — container that other entities are `part_of`
+   - `task` — actionable item (`attributes.is_milestone: true` for
+     milestones)
+   - `document` — runbook, post-mortem, design doc
+   - `note` — provenance anchor for an external source (URL, paper)
+   - `config` / `secret` — URLs, env vars, credentials. Secrets are
+     MCP-unreadable by design; do not attempt to read them.
+   - `inbox_item` — GTD quick capture to triage later
+4. **Linking:** pick a named relation, not `relates_to`:
+   `part_of`, `depends_on`, `blocks`, `supersedes`, `documents`,
+   `derived_from`, `triggered_by`, `implements`, `produces`,
+   `consumes`, `mentions`, `owned_by`, `has_version`, `variant_of`.
+5. **Traversal:** prefer one `get_related` over multiple
+   `get_entity` calls. Use `as_of` for point-in-time queries.
+6. **Graph hygiene:** at the end of a substantial session, call
+   `lint_graph` and fix orphans and duplicate titles.
+
+## ADR discipline
+
+Every `kind=decision` MUST carry at least one edge —
+`derived_from`, `triggered_by`, `supersedes`, or `part_of`. A
+free-floating decision is a bug; the next agent won't find it.
+
+## Session handoff
+
+At the end of every non-trivial session, save a handoff-fact:
+
+- `kind: "fact"`
+- `attributes.session_type: "handoff"`
+- `attributes.session_date: "<ISO date>"`
+- `attributes.session_id: "<short slug>"`
+- `attributes.agent_id: "<model id>"`
+- `attributes.git_branch: "<branch>"` if applicable
+- `part_of: "<project-entity-id>"` (required for handoffs, not
+  optional — server enforces this)
+
+Title format: `"<Project> Handoff <Date> — <Core topic>"`.
+
+## Optimistic locking
+
+Every `update_entity` requires `expected_version`. On
+`version_conflict`, re-fetch with `get_entity` and retry; never
+blindly overwrite.
+
+## Versioning, not deletion
+
+Never delete by hand. Supersede: create the new entity, link
+`supersedes <old>` (1:1), then `archive_entity` the old one.
+
+## Memory routing — when plexus, when local scratchpad
+
+**Goes in plexus (the default):**
+- Anything team-, project-, architecture- or decision-relevant.
+- Incidents, milestones, post-mortems, ADRs.
+- Anything an agent in another session will want to know.
+
+**Keep in a local scratchpad instead:**
+- Per-session ephemera (current file paths, interim REPL output).
+- Host-local gotchas with no team value (a specific IDE's template
+  literal trap, one machine's firewall oddity).
+
+**When in doubt, plexus wins.** You can always archive a noisy
+entity; you cannot recover one you never wrote.
+
+## Trigger phrases
+
+If the user says any of these, load the matching skill via
+`load_skill` before acting:
+
+| Phrase | Skill |
+|---|---|
+| "ADR" / "decision" | entscheidung / adr |
+| "post-mortem" | post-mortem |
+| "pre-mortem" | pre-mortem |
+| "5 whys" / "root cause" | 5-whys |
+| "runbook" | runbook |
+| "STRIDE" / "threat model" | stride |
+| "weekly review" | weekly-review |
+| "meeting notes" | meeting-protokoll |
+
+Skills are `kind=skill` entities in the graph with a trigger-phrase
+attribute. `list_skills` gives you the index; `load_skill` returns
+the full markdown body.
+````
+
+**Tighten per agent role.** Issue distinct personal tokens with narrow scope instead of one all-powerful token:
+
+- **Writer** agent (Claude Code CLI): `permission=write`, all contexts, all kinds.
+- **Reader** widget (a dashboard, a monitoring job): `permission=read`, single `contexts: [dev]`, no secrets.
+- **Domain-specific** agent (e.g. a research summariser): `permission=write`, `kinds: [note, concept, fact]` only.
+
+The dashboard's `/tokens` page generates any of these in two clicks.
+
 ---
 
 ## What the graph knows
@@ -155,6 +310,8 @@ Every tool enforces scope at the handler boundary: `requireWrite()`, `checkConte
 `contains` / `part_of` · `relates_to` · `depends_on` / `blocks` · `supersedes` / `superseded_by` · `documents` / `documented_by` · `implements` · `produces` / `produced_by` · `consumes` · `mentions` · `derived_from` · `triggered_by` · `has_version` · `variant_of` · `executed_by` · `owned_by`
 
 Every edge carries `valid_from`, `valid_to`, `confidence`, and `source` (`manual` / `llm-inferred` / `computed` / `imported`). `unlink_entity` sets `valid_to = now`; the edge survives as history. `get_related(as_of: …)` gives you the graph state at any point in the past.
+
+![plexus entity detail — ADR with markdown body, attributes, and typed relations](./docs/screenshots/04-entity-detail.png)
 
 ---
 
@@ -212,6 +369,8 @@ One share URL, three formats:
 - Ranking: `search::score(0) * 2 + search::score(1)` — title weighs twice.
 - Optional highlighting wraps matches in `<mark>` tags.
 - Optional `body_preview_chars` (0–2000) to cap response size — recommended for wide queries.
+
+![plexus entities browser — BM25 search with match highlighting](./docs/screenshots/03-entities-search.png)
 
 ---
 
