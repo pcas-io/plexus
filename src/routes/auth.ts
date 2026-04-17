@@ -124,7 +124,7 @@ export function authRoutes(deps: Deps): Hono {
       const user = await deps.users.findById(pending);
       if (!user || !user.is_active) {
         clearPendingAuth(c);
-        return c.html(renderLoginPage({ csrfToken, errorMessage: 'Benutzer nicht mehr aktiv.' }));
+        return c.html(renderLoginPage({ csrfToken, errorMessage: 'This user is no longer active.' }));
       }
       const passkeyCount = await deps.passkeys.countForUser(user.id);
       if (passkeyCount === 0) {
@@ -155,7 +155,7 @@ export function authRoutes(deps: Deps): Hono {
       ?? c.req.header('X-Forwarded-For')?.split(',')[0]?.trim()
       ?? 'unknown';
     if (loginLimiter.hit(ip)) {
-      return c.html(renderLoginPage({ csrfToken: ensureCsrfToken(c), errorMessage: 'Zu viele Versuche. Bitte spaeter erneut versuchen.' }), 429);
+      return c.html(renderLoginPage({ csrfToken: ensureCsrfToken(c), errorMessage: 'Too many attempts. Please try again later.' }), 429);
     }
     const csrfToken = ensureCsrfToken(c);
     const form = await c.req.parseBody();
@@ -163,12 +163,12 @@ export function authRoutes(deps: Deps): Hono {
     const submittedCsrf = typeof form._csrf === 'string' ? form._csrf : '';
 
     if (!submittedCsrf || submittedCsrf !== csrfToken) {
-      return c.html(renderLoginPage({ csrfToken, errorMessage: 'Ungueltiges CSRF-Token. Seite neu laden und erneut versuchen.' }), 403);
+      return c.html(renderLoginPage({ csrfToken, errorMessage: 'Invalid CSRF token. Reload the page and try again.' }), 403);
     }
 
     if (!token) {
       return c.html(
-        renderLoginPage({ csrfToken, errorMessage: 'Bitte einen Token eingeben.' }),
+        renderLoginPage({ csrfToken, errorMessage: 'Please enter a token.' }),
         400
       );
     }
@@ -178,7 +178,7 @@ export function authRoutes(deps: Deps): Hono {
     // on non-bootstrap" from "deactivated user". The only branching info
     // is "empty field" (above) and "CSRF mismatch" (above) which are
     // client errors, not auth failures.
-    const LOGIN_FAIL = 'Login fehlgeschlagen.';
+    const LOGIN_FAIL = 'Sign-in failed.';
 
     // Admin token path.
     if (timingSafeStringEqual(token, deps.config.adminToken)) {
@@ -294,7 +294,7 @@ export function authRoutes(deps: Deps): Hono {
       });
     } catch (err) {
       console.error('[auth] enroll finish error:', err);
-      return c.json({ error: 'enrollment_failed', message: 'Passkey-Registrierung fehlgeschlagen.' }, 400);
+      return c.json({ error: 'enrollment_failed', message: 'Passkey registration failed.' }, 400);
     }
   });
 
@@ -361,7 +361,7 @@ export function authRoutes(deps: Deps): Hono {
       return c.json({ ok: true, redirect: next ?? '/' });
     } catch (err) {
       console.error('[auth] passkey auth finish error:', err);
-      return c.json({ error: 'auth_failed', message: 'Passkey-Authentifizierung fehlgeschlagen.' }, 401);
+      return c.json({ error: 'auth_failed', message: 'Passkey authentication failed.' }, 401);
     }
   });
 

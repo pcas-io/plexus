@@ -2,7 +2,7 @@
  * OAuth 2.1 consent screen — rendered by GET /oauth/authorize.
  *
  * Shows the requesting client, the redirect target, the scope, and
- * two buttons (Zulassen / Abbrechen). Submits back to POST
+ * two buttons (Allow / Cancel). Submits back to POST
  * /oauth/authorize with the original request parameters preserved as
  * hidden fields so the decision handler can re-validate them.
  */
@@ -44,11 +44,11 @@ export function renderOAuthConsent(opts: ConsentOptions): string {
   const body = html`
     <div style="max-width:560px;margin:3rem auto;padding:0 1.23rem">
       <div style="font-size:0.69rem;color:var(--color-subtle);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.46rem">
-        plexus · oauth · zustimmung
+        plexus · oauth · consent
       </div>
-      <h1 style="margin-bottom:0.77rem">Zugriff erlauben?</h1>
+      <h1 style="margin-bottom:0.77rem">Allow access?</h1>
       <p class="subtitle">
-        <strong>${escapeHtml(client.client_name)}</strong> moechte auf deinen plexus Knowledge Graph zugreifen.
+        <strong>${escapeHtml(client.client_name)}</strong> wants to access your plexus knowledge graph.
       </p>
 
       <div class="card" style="margin-bottom:1.23rem">
@@ -58,25 +58,25 @@ export function renderOAuthConsent(opts: ConsentOptions): string {
         </div>
         <div style="font-weight:600;font-size:1rem;color:var(--color-ink);margin-bottom:0.31rem">${escapeHtml(client.client_name)}</div>
         <div class="subtle" style="font-size:0.85rem">
-          Leitet nach erfolgreicher Zustimmung weiter an<br>
+          After you approve, redirects back to<br>
           <span class="mono" style="font-size:0.77rem;word-break:break-all;color:var(--color-mid)">${escapeHtml(redirectOrigin)}</span>
         </div>
       </div>
 
       <div class="card" style="margin-bottom:1.23rem">
-        <div class="subtle" style="font-size:0.69rem;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.46rem">Angefragte Berechtigungen</div>
+        <div class="subtle" style="font-size:0.69rem;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.46rem">Requested scope</div>
         <ul style="list-style:none;padding:0;margin:0">
           ${raw(scopeItems)}
         </ul>
         <p class="subtle" style="font-size:0.85rem;margin-top:0.62rem">
-          Der Client kann im Namen von <strong class="mono">${escapeHtml(currentUser.name)}</strong> Entities lesen, anlegen, verknuepfen und archivieren. Share-Links, User-Management und Sessions sind ausgeschlossen.
+          The client can read, create, link, and archive entities on behalf of <strong class="mono">${escapeHtml(currentUser.name)}</strong>. Share links, user management, and sessions are out of scope.
         </p>
       </div>
 
       <div class="card" style="margin-bottom:1.23rem">
-        <div class="subtle" style="font-size:0.69rem;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.46rem">Token-Lifetime</div>
+        <div class="subtle" style="font-size:0.69rem;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.46rem">Token lifetime</div>
         <p style="font-size:0.85rem;color:var(--color-body);margin:0">
-          Access-Token: 1 Stunde · Refresh-Token: 30 Tage · Widerrufbar jederzeit ueber <span class="mono">/oauth/revoke</span> oder die Sessions-Seite.
+          Access token: 1 hour · Refresh token: 30 days · Revocable any time via <span class="mono">/oauth/revoke</span> or the Sessions page.
         </p>
       </div>
 
@@ -89,18 +89,18 @@ export function renderOAuthConsent(opts: ConsentOptions): string {
         <input type="hidden" name="state" value="${escapeHtml(state)}">
         <input type="hidden" name="resource" value="${escapeHtml(resource)}">
 
-        <button type="submit" name="decision" value="allow" class="btn" style="padding:0.77rem">Zulassen</button>
-        <button type="submit" name="decision" value="deny" class="btn btn-ghost" style="padding:0.77rem">Abbrechen</button>
+        <button type="submit" name="decision" value="allow" class="btn" style="padding:0.77rem">Allow</button>
+        <button type="submit" name="decision" value="deny" class="btn btn-ghost" style="padding:0.77rem">Cancel</button>
       </form>
 
       <p class="subtle" style="font-size:0.77rem;margin-top:1.54rem;text-align:center">
-        Du bist angemeldet als <strong class="mono">${escapeHtml(currentUser.name)}</strong>. Alle Token werden an diese User-Identitaet gebunden.
+        Signed in as <strong class="mono">${escapeHtml(currentUser.name)}</strong>. All tokens are bound to this user identity.
       </p>
     </div>
   `;
 
   return layout({
-    title: `Zugriff erlauben — ${client.client_name}`,
+    title: `Allow access — ${client.client_name}`,
     body,
     // Intentionally no nav bar — the consent screen should look like
     // a focused modal, not a dashboard page.

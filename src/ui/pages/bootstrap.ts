@@ -15,12 +15,12 @@ export function renderBootstrapPage({ csrfToken, flash }: BootstrapOptions): str
     ? `
       <div class="info" style="text-align:left">
         <div style="font-weight:600;margin-bottom:4px">${escapeHtml(flash.message)}</div>
-        <div class="subtle" style="font-size:0.77rem;margin-bottom:8px">Speichere diesen Token JETZT — er wird nie wieder angezeigt.</div>
+        <div class="subtle" style="font-size:0.77rem;margin-bottom:8px">Save this token NOW — it will never be shown again.</div>
         <div class="token-box">${escapeHtml(flash.token)}</div>
       </div>
       <form method="POST" action="/bootstrap/continue" style="margin-top:12px">
         <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-        <button type="submit">Weiter zum Login</button>
+        <button type="submit">Continue to login</button>
       </form>`
     : flash
     ? `<div class="error">${escapeHtml(flash.message)}</div>`
@@ -30,9 +30,9 @@ export function renderBootstrapPage({ csrfToken, flash }: BootstrapOptions): str
     ? `
       <form method="POST" action="/bootstrap">
         <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-        <label>Admin-Name</label>
+        <label>Admin name</label>
         <input type="text" name="name" required autofocus autocomplete="off" maxlength="64" pattern="[a-zA-Z0-9_\\.\\-]+" placeholder="admin">
-        <button type="submit">Admin anlegen</button>
+        <button type="submit">Create admin</button>
       </form>`
     : '';
 
@@ -40,9 +40,9 @@ export function renderBootstrapPage({ csrfToken, flash }: BootstrapOptions): str
 <div class="login-page">
   <div class="login-box">
     <h1>plexus</h1>
-    <div class="login-hint">Admin-Bootstrap (einmaliger Setup)</div>
+    <div class="login-hint">Admin bootstrap (one-time setup)</div>
     <div class="info" style="font-size:0.77rem;text-align:left">
-      Nach dem Anlegen des ersten Admin-Users wird der <code>PLEXUS_ADMIN_TOKEN</code> nur noch fuer User-Management akzeptiert, nicht fuer Dashboard-Login oder MCP.
+      Once the first admin user is created, <code>PLEXUS_ADMIN_TOKEN</code> is only accepted for user management — not for dashboard login or MCP calls.
     </div>
     ${flashHtml}
     ${form}

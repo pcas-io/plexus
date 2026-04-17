@@ -88,11 +88,11 @@ function miniActivityRing(percent: number): string {
 
 function actionLabel(action: string): string {
   switch (action) {
-    case 'save_entity':    return 'neu';
-    case 'update_entity':  return 'update';
-    case 'archive_entity': return 'archiviert';
-    case 'link_entities':  return 'verbunden';
-    case 'unlink_entity':  return 'getrennt';
+    case 'save_entity':    return 'created';
+    case 'update_entity':  return 'updated';
+    case 'archive_entity': return 'archived';
+    case 'link_entities':  return 'linked';
+    case 'unlink_entity':  return 'unlinked';
     default:               return action;
   }
 }
@@ -130,7 +130,7 @@ function contextFilterBar(activeContext: string | undefined, contexts: string[])
   const allActive = !activeContext;
   const allCls = allActive ? 'badge badge-status badge-active' : 'badge';
   const allStyle = allActive ? '' : 'color:var(--color-subtle);border:1px solid var(--color-border)';
-  const allBadge = `<a href="/" class="${allCls}" style="${allStyle}">Alle</a>`;
+  const allBadge = `<a href="/" class="${allCls}" style="${allStyle}">All</a>`;
   const ctxBadges = contexts.map((ctx) => {
     const isActive = activeContext === ctx;
     const cls = `badge badge-${ctx}${isActive ? ' badge-status badge-active' : ''}`;
@@ -147,7 +147,7 @@ export function renderHome(opts: HomeOptions): string {
   const { currentUser, activeContext, contexts, stats, projects, recentEntities, recentActivity, activityEntityTitles, csrfToken } = opts;
 
   const projectTiles = projects.length === 0
-    ? '<p class="empty">Noch keine Projekte in diesem Kontext. Projekte werden via MCP angelegt (save_entity mit kind=project).</p>'
+    ? '<p class="empty">No projects in this context yet. Projects are created via MCP (save_entity with kind=project).</p>'
     : projects.map(({ entity, score, percent }) => `
         <a href="/entities/${encodeURIComponent(entity.id)}" style="text-decoration:none;color:inherit">
           <div class="bento-tile">
@@ -171,7 +171,7 @@ export function renderHome(opts: HomeOptions): string {
         </a>`).join('');
 
   const recentEntitiesHtml = recentEntities.length === 0
-    ? '<p class="empty">Noch keine Entities. Entities werden via MCP angelegt (save_entity).</p>'
+    ? '<p class="empty">No entities yet. Entities are created via MCP (save_entity).</p>'
     : recentEntities.map((e) => `
         <a href="/entities/${encodeURIComponent(e.id)}" style="text-decoration:none;color:inherit">
           <div class="bento-tile">
@@ -185,7 +185,7 @@ export function renderHome(opts: HomeOptions): string {
         </a>`).join('');
 
   const activityItems = recentActivity.length === 0
-    ? '<p class="empty">Noch keine Aktivitaeten. MCP-Calls tauchen hier auf sobald Entities angelegt oder verknuepft werden.</p>'
+    ? '<p class="empty">No activity yet. MCP calls appear here as soon as entities are created or linked.</p>'
     : `<ul class="activity-list">${recentActivity.map((a) => renderActivityItem(a, activityEntityTitles)).join('')}</ul>`;
 
   const body = html`
@@ -195,16 +195,16 @@ export function renderHome(opts: HomeOptions): string {
 
     <div class="bento-grid">
       <div class="bento-projects">
-        <h2>Projekte</h2>
+        <h2>Projects</h2>
         ${raw(projectTiles)}
 
-        <h2 style="margin-top:1.23rem">Zuletzt aktualisiert</h2>
+        <h2 style="margin-top:1.23rem">Recently updated</h2>
         ${raw(recentEntitiesHtml)}
       </div>
 
       <div class="bento-sidebar">
         <div>
-          <h2>Aktivitaet</h2>
+          <h2>Activity</h2>
           ${raw(activityItems)}
         </div>
       </div>
@@ -213,7 +213,7 @@ export function renderHome(opts: HomeOptions): string {
     <div class="usage-widget" style="margin-top:1.85rem">
       <div class="usage-count"><strong>${stats.entityCount}</strong> Entities</div>
       <span class="usage-sep">&middot;</span>
-      <div class="usage-count"><strong>${stats.activeEdgeCount}</strong> Kanten</div>
+      <div class="usage-count"><strong>${stats.activeEdgeCount}</strong> Edges</div>
       <span class="usage-sep">&middot;</span>
       <div class="usage-count"><strong>${stats.kindCount}</strong> Kinds</div>
       <span class="usage-sep">&middot;</span>

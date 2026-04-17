@@ -112,15 +112,15 @@ function paginationControls(filter: AuditFilterInput, offset: number, limit: num
   const prevUrl = `/audit${buildQuery(filter, prevOffset, limit)}`;
   const nextUrl = `/audit${buildQuery(filter, nextOffset, limit)}`;
   const prevBtn = hasPrev
-    ? `<a class="btn btn-ghost btn-small" href="${prevUrl}">← Zurueck</a>`
-    : `<span class="btn btn-ghost btn-small" style="opacity:0.4;pointer-events:none">← Zurueck</span>`;
+    ? `<a class="btn btn-ghost btn-small" href="${prevUrl}">← Previous</a>`
+    : `<span class="btn btn-ghost btn-small" style="opacity:0.4;pointer-events:none">← Previous</span>`;
   const nextBtn = hasNext
-    ? `<a class="btn btn-ghost btn-small" href="${nextUrl}">Weiter →</a>`
-    : `<span class="btn btn-ghost btn-small" style="opacity:0.4;pointer-events:none">Weiter →</span>`;
+    ? `<a class="btn btn-ghost btn-small" href="${nextUrl}">Next →</a>`
+    : `<span class="btn btn-ghost btn-small" style="opacity:0.4;pointer-events:none">Next →</span>`;
   return `
     <div style="display:flex;gap:0.62rem;align-items:center;margin-top:0.77rem">
       ${prevBtn}
-      <span class="subtle mono" style="font-size:0.85rem">Seite ${currentPage} / ${totalPages} (${total} Zeilen gesamt)</span>
+      <span class="subtle mono" style="font-size:0.85rem">Page ${currentPage} / ${totalPages} (${total} rows total)</span>
       ${nextBtn}
     </div>
   `;
@@ -135,19 +135,19 @@ export function renderAuditPage(opts: AuditPageOptions): string {
   const { currentUser, entries, totalCount, limit, offset, filter, actionOptions, userOptions, csrfToken } = opts;
 
   const userDropdown = [
-    '<option value="">— alle —</option>',
+    '<option value="">— all —</option>',
     ...userOptions.map((u) => selectOption(u, filter.userName)),
   ].join('');
   const actionDropdown = [
-    '<option value="">— alle —</option>',
+    '<option value="">— all —</option>',
     ...actionOptions.map((a) => selectOption(a, filter.action)),
   ].join('');
   const outcomeDropdown = [
-    '<option value="">— alle —</option>',
+    '<option value="">— all —</option>',
     ...OUTCOME_OPTIONS.map((o) => selectOption(o, filter.outcome)),
   ].join('');
   const targetTypeDropdown = [
-    '<option value="">— alle —</option>',
+    '<option value="">— all —</option>',
     ...TARGET_TYPE_OPTIONS.map((t) => selectOption(t, filter.targetType)),
   ].join('');
 
@@ -157,7 +157,7 @@ export function renderAuditPage(opts: AuditPageOptions): string {
   // object into "[object Object]" — we learned that the hard way in
   // the first live preview.
   const rows = entries.length === 0
-    ? `<tr><td colspan="7" class="subtle" style="text-align:center;padding:1.23rem">Keine Eintraege fuer diesen Filter.</td></tr>`
+    ? `<tr><td colspan="7" class="subtle" style="text-align:center;padding:1.23rem">No entries match this filter.</td></tr>`
     : entries
         .map((e) => `
           <tr>
@@ -173,8 +173,8 @@ export function renderAuditPage(opts: AuditPageOptions): string {
         .join('');
 
   const body = html`
-    <h1>Audit Log</h1>
-    <p class="subtitle">Alle Activity-Log-Eintraege inklusive Security-Events. Nur Admins.</p>
+    <h1>Audit log</h1>
+    <p class="subtitle">All activity-log entries, including security events. Admins only.</p>
 
     <form method="GET" action="/audit" class="card" style="margin-bottom:1.23rem">
       <div class="form-row">

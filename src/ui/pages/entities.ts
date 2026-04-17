@@ -90,12 +90,12 @@ export function renderEntitiesList(opts: EntitiesListOptions): string {
   };
 
   const resultInfo = filterQuery
-    ? `<div class="filter-result-count">${entities.length} ${entities.length === 1 ? 'Treffer' : 'Treffer'} für <strong>${escapeHtml(`"${filterQuery}"`)}</strong></div>`
+    ? `<div class="filter-result-count">${entities.length} ${entities.length === 1 ? 'match' : 'matches'} for <strong>${escapeHtml(`"${filterQuery}"`)}</strong></div>`
     : '';
 
   const emptyMessage = filterQuery
-    ? `<div class="empty">Keine Treffer für <strong>${escapeHtml(`"${filterQuery}"`)}</strong>. Versuch einen anderen Suchbegriff oder passe die Filter an.</div>`
-    : '<div class="empty">Keine Entities im Graph. Entities werden ausschliesslich via MCP angelegt (save_entity).</div>';
+    ? `<div class="empty">No matches for <strong>${escapeHtml(`"${filterQuery}"`)}</strong>. Try a different query or adjust the filters.</div>`
+    : '<div class="empty">No entities in the graph yet. Entities are only created via MCP (save_entity).</div>';
 
   const cards = entities.length === 0
     ? emptyMessage
@@ -115,25 +115,25 @@ export function renderEntitiesList(opts: EntitiesListOptions): string {
 
   const body = html`
     <h1>Entities</h1>
-    <p class="subtitle">Read-only-Ansicht des Wissensgraphs. Entities und Edges werden ausschliesslich via MCP gemanaged.</p>
+    <p class="subtitle">Read-only view of the knowledge graph. Entities and edges are managed exclusively through MCP.</p>
 
     <form method="GET" action="/entities" class="filter-bar">
       <input
         type="search"
         name="q"
         class="filter-bar-search"
-        placeholder="Suche in Titel und Body…"
+        placeholder="Search title and body…"
         value="${escapeHtml(filterQuery ?? '')}"
         autocomplete="off"
-        aria-label="Volltextsuche"
+        aria-label="Full-text search"
       >
       <select name="kind" aria-label="Kind filter">${raw(kindOptions)}</select>
-      <select name="context" aria-label="Kontext filter">${raw(contextOptions)}</select>
+      <select name="context" aria-label="Context filter">${raw(contextOptions)}</select>
       <select name="status" aria-label="Status filter">
-        <option value="">Aktiv (default)</option>
+        <option value="">Active (default)</option>
         ${raw(statusOptions)}
       </select>
-      <label class="filter-bar-check" title="Tasks sind per Default ausgeblendet weil sie die Uebersicht dominieren.">
+      <label class="filter-bar-check" title="Tasks are hidden by default because they dominate the overview.">
         <input type="checkbox" name="show_tasks" value="1"${filterShowTasks ? ' checked' : ''}>
         <span>Tasks</span>
       </label>

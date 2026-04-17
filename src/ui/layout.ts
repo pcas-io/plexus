@@ -103,12 +103,12 @@ const CMDK_HTML = `
   <div class="cmdk-panel" role="combobox" aria-expanded="true">
     <div class="cmdk-input-wrap">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input id="cmdk-input" class="cmdk-input" type="text" placeholder="Suche Entities im ganzen Graph…" autocomplete="off" spellcheck="false" aria-label="Global search">
+      <input id="cmdk-input" class="cmdk-input" type="text" placeholder="Search all entities in the graph…" autocomplete="off" spellcheck="false" aria-label="Global search">
       <span class="cmdk-hint">ESC</span>
     </div>
     <div id="cmdk-results" class="cmdk-results" role="listbox"></div>
     <div class="cmdk-footer">
-      <span><kbd>↑</kbd><kbd>↓</kbd> Navigation · <kbd>↵</kbd> Öffnen</span>
+      <span><kbd>↑</kbd><kbd>↓</kbd> Navigate · <kbd>↵</kbd> Open</span>
       <span><kbd>⌘</kbd><kbd>K</kbd> oder <kbd>Ctrl</kbd><kbd>K</kbd></span>
     </div>
   </div>
@@ -157,9 +157,9 @@ const CMDK_SCRIPT = `
     var div = document.createElement('div');
     div.className = 'cmdk-' + kind;
     if (queryForTemplate) {
-      // "Keine Treffer fuer \\"foo\\"." — build via textContent so
-      // the query string stays inert.
-      div.appendChild(document.createTextNode('Keine Treffer fuer '));
+      // "No matches for \\"foo\\"." — built via textContent so the
+      // query string stays inert.
+      div.appendChild(document.createTextNode('No matches for '));
       var strong = document.createElement('strong');
       strong.textContent = '"' + queryForTemplate + '"';
       div.appendChild(strong);
@@ -191,7 +191,7 @@ const CMDK_SCRIPT = `
     clearList();
     var q = input.value.trim();
     if (!q) {
-      list.appendChild(emptyRow('empty', 'Tippe um zu suchen…', null));
+      list.appendChild(emptyRow('empty', 'Type to search…', null));
       return;
     }
     if (state.results.length === 0) {
@@ -257,7 +257,7 @@ const CMDK_SCRIPT = `
       if (reqId !== state.reqId) return;
       state.results = [];
       clearList();
-      list.appendChild(emptyRow('empty', 'Fehler bei der Suche.', null));
+      list.appendChild(emptyRow('empty', 'Search failed.', null));
     }
   }
 
@@ -345,7 +345,7 @@ function renderNav(user: CurrentUser | undefined, activePath: string | undefined
       <button class="ctrl-btn" onclick="toggleTheme()" aria-label="Theme wechseln" type="button">${MOON_SVG}${SUN_SVG}</button>
       <form method="POST" action="/auth/logout" style="display:inline;margin-left:8px">
         ${csrfInput}
-        <button type="submit" class="ctrl-btn" aria-label="Abmelden" style="font-size:9px;width:auto;padding:0 8px">Logout</button>
+        <button type="submit" class="ctrl-btn" aria-label="Sign out" style="font-size:9px;width:auto;padding:0 8px">Logout</button>
       </form>
     </div>
   </div>
@@ -362,7 +362,7 @@ export function layout({ title, body, currentUser, activePath, csrfToken, headEx
     : body;
 
   return `<!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">

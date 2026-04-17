@@ -31,7 +31,7 @@ function statusLabel(t: PersonalToken): string {
     const exp = Date.parse(t.expires_at);
     if (Number.isFinite(exp) && exp <= Date.now()) return '<span class="badge badge-archived">expired</span>';
   }
-  return '<span class="badge badge-active">aktiv</span>';
+  return '<span class="badge badge-active">active</span>';
 }
 
 function scopeLabel(t: PersonalToken): string {
@@ -64,38 +64,38 @@ export function renderTokensPage(opts: TokensPageOptions): string {
       <td>${statusLabel(t)}</td>
       <td class="mono" style="font-size:0.77rem">${escapeHtml(scopeLabel(t))}</td>
       <td class="mono" style="font-size:0.77rem">${formatDate(t.created_at)}</td>
-      <td class="mono" style="font-size:0.77rem">${t.last_used_at ? formatDate(t.last_used_at) : '<span class="subtle">nie</span>'}</td>
-      <td class="mono" style="font-size:0.77rem">${t.expires_at ? formatDate(t.expires_at) : '<span class="subtle">nie</span>'}</td>
+      <td class="mono" style="font-size:0.77rem">${t.last_used_at ? formatDate(t.last_used_at) : '<span class="subtle">never</span>'}</td>
+      <td class="mono" style="font-size:0.77rem">${t.expires_at ? formatDate(t.expires_at) : '<span class="subtle">never</span>'}</td>
       <td>${canRevoke
         ? `<form method="POST" action="/tokens/${encodeURIComponent(t.id)}/revoke" style="display:inline">
             <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-            <button type="submit" class="btn btn-small btn-ghost" onclick="return confirm('Token widerrufen?')">Revoke</button>
+            <button type="submit" class="btn btn-small btn-ghost" onclick="return confirm('Revoke token?')">Revoke</button>
           </form>`
         : '—'}</td>
     </tr>`;
 
   const activeRows = activeTokens.length === 0
-    ? '<tr><td colspan="7" class="empty">Keine aktiven Tokens.</td></tr>'
+    ? '<tr><td colspan="7" class="empty">No active tokens.</td></tr>'
     : activeTokens.map((t) => renderRow(t, activeTokens.length > 1)).join('');
 
   const inactiveRows = inactiveTokens.length === 0
     ? ''
-    : `<h2 style="margin-top:1.54rem">Inaktive Tokens</h2>
+    : `<h2 style="margin-top:1.54rem">Inactive tokens</h2>
        <div class="table-wrapper"><table>
-       <thead><tr><th>Label</th><th>Status</th><th>Scope</th><th>Erstellt</th><th>Zuletzt</th><th>Ablauf</th><th></th></tr></thead>
+       <thead><tr><th>Label</th><th>Status</th><th>Scope</th><th>Created</th><th>Last used</th><th>Expires</th><th></th></tr></thead>
        <tbody>${inactiveTokens.map((t) => renderRow(t, false)).join('')}</tbody>
        </table></div>`;
 
   const body = html`
-    <h1>Meine Tokens</h1>
-    <p class="subtitle">Persoenliche MCP-Tokens fuer diesen Account. Jeder Token hat eigene Berechtigungen.</p>
+    <h1>My tokens</h1>
+    <p class="subtitle">Personal MCP tokens for this account. Each token has its own scope.</p>
 
     ${raw(renderFlash(flash as Parameters<typeof renderFlash>[0]))}
 
-    <h2>Aktive Tokens</h2>
+    <h2>Active tokens</h2>
     <div class="table-wrapper">
       <table>
-        <thead><tr><th>Label</th><th>Status</th><th>Scope</th><th>Erstellt</th><th>Zuletzt</th><th>Ablauf</th><th>Aktion</th></tr></thead>
+        <thead><tr><th>Label</th><th>Status</th><th>Scope</th><th>Created</th><th>Last used</th><th>Expires</th><th>Action</th></tr></thead>
         <tbody>${raw(activeRows)}</tbody>
       </table>
     </div>
@@ -103,14 +103,14 @@ export function renderTokensPage(opts: TokensPageOptions): string {
     ${raw(inactiveRows)}
 
     <div class="card" style="margin-top:1.54rem">
-      <h3>Neuen Token erstellen</h3>
-      <p class="subtle" style="font-size:0.85rem;margin-bottom:0.62rem">Erstellt einen zusaetzlichen Token mit eigenem Scope fuer diesen Account.</p>
+      <h3>Create new token</h3>
+      <p class="subtle" style="font-size:0.85rem;margin-bottom:0.62rem">Creates an additional token with its own scope for this account.</p>
       <form method="POST" action="/tokens/create">
         <input type="hidden" name="_csrf" value="${csrfToken}">
         <div class="form-row">
           <div class="form-field">
             <label>Label</label>
-            <input type="text" name="label" maxlength="100" placeholder="z.B. Claude Code, Monitoring" required>
+            <input type="text" name="label" maxlength="100" placeholder="e.g. Claude Code, Monitoring" required>
           </div>
           <div class="form-field">
             <label>Permission</label>
@@ -121,21 +121,21 @@ export function renderTokensPage(opts: TokensPageOptions): string {
             </select>
           </div>
           <div class="form-field">
-            <label>Ablauf (Tage)</label>
-            <input type="number" name="expires_in_days" min="1" max="365" placeholder="unbegrenzt">
+            <label>Expiry (days)</label>
+            <input type="number" name="expires_in_days" min="1" max="365" placeholder="no limit">
           </div>
           <div style="flex:0 0 auto">
-            <button type="submit" class="btn">Token erstellen</button>
+            <button type="submit" class="btn">Create token</button>
           </div>
         </div>
-        ${raw(ctxCheckboxes ? `<div style="margin-top:0.46rem"><label style="display:block;font-size:0.69rem;font-weight:700;color:var(--color-subtle);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.38rem">Contexts (leer = alle)</label><div>${ctxCheckboxes}</div></div>` : '')}
-        ${raw(kindCheckboxes ? `<div style="margin-top:0.46rem"><label style="display:block;font-size:0.69rem;font-weight:700;color:var(--color-subtle);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.38rem">Kinds (leer = alle)</label><div>${kindCheckboxes}</div></div>` : '')}
+        ${raw(ctxCheckboxes ? `<div style="margin-top:0.46rem"><label style="display:block;font-size:0.69rem;font-weight:700;color:var(--color-subtle);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.38rem">Contexts (empty = all)</label><div>${ctxCheckboxes}</div></div>` : '')}
+        ${raw(kindCheckboxes ? `<div style="margin-top:0.46rem"><label style="display:block;font-size:0.69rem;font-weight:700;color:var(--color-subtle);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.38rem">Kinds (empty = all)</label><div>${kindCheckboxes}</div></div>` : '')}
       </form>
     </div>
   `;
 
   return layout({
-    title: 'Meine Tokens',
+    title: 'My tokens',
     body,
     currentUser,
     activePath: '/tokens',

@@ -25,15 +25,15 @@ export function renderSessionsList(opts: SessionsListOptions): string {
   const { currentUser, sessions, currentSessionId, csrfToken, flash } = opts;
 
   const rows = sessions.length === 0
-    ? '<tr><td colspan="6" class="empty">Keine aktiven Sessions.</td></tr>'
+    ? '<tr><td colspan="6" class="empty">No active sessions.</td></tr>'
     : sessions
         .map((s) => {
           const isCurrent = s.id === currentSessionId;
           const action = isCurrent
-            ? '<span class="badge badge-active">diese Session</span>'
+            ? '<span class="badge badge-active">this session</span>'
             : `<form method="POST" action="/sessions/${encodeURIComponent(s.id)}/revoke" style="display:inline">
                 <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-                <button type="submit" class="btn btn-small btn-danger">Beenden</button>
+                <button type="submit" class="btn btn-small btn-danger">Revoke</button>
               </form>`;
           return `
             <tr>
@@ -48,8 +48,8 @@ export function renderSessionsList(opts: SessionsListOptions): string {
         .join('');
 
   const body = html`
-    <h1>Meine Sessions</h1>
-    <p class="subtitle">Alle aktiven Dashboard-Anmeldungen. Nicht-aktuelle Sessions kannst du einzeln beenden.</p>
+    <h1>My sessions</h1>
+    <p class="subtitle">All active dashboard sessions. You can revoke any session that isn't the current one.</p>
 
     ${raw(renderFlash(flash))}
 
@@ -60,9 +60,9 @@ export function renderSessionsList(opts: SessionsListOptions): string {
             <th>Session</th>
             <th>IP</th>
             <th>User-Agent</th>
-            <th>Erstellt</th>
-            <th>Letzte Aktivitaet</th>
-            <th>Aktion</th>
+            <th>Created</th>
+            <th>Last active</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>${raw(rows)}</tbody>
@@ -72,7 +72,7 @@ export function renderSessionsList(opts: SessionsListOptions): string {
     <div style="margin-top:1.23rem">
       <form method="POST" action="/auth/logout">
         <input type="hidden" name="_csrf" value="${csrfToken}">
-        <button type="submit" class="btn btn-danger">Von diesem Geraet abmelden</button>
+        <button type="submit" class="btn btn-danger">Sign out on this device</button>
       </form>
     </div>
   `;

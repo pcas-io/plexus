@@ -1,9 +1,9 @@
 /**
  * Help page — /help.
  *
- * In-Dashboard documentation covering all plexus features: entities,
- * edges, kinds, contexts, MCP, auth flows, passkeys, share links,
- * token scoping, graph view.
+ * In-dashboard documentation covering the first-run bootstrap,
+ * entities, edges, kinds, contexts, MCP, auth flows, passkeys, share
+ * links, token scoping, graph view, admin tools.
  */
 
 import type { User } from '../../db/repositories/users.js';
@@ -16,209 +16,230 @@ interface HelpOptions {
 
 export function renderHelpPage({ currentUser, csrfToken }: HelpOptions): string {
   const body = `
-<h1>Hilfe</h1>
-<p class="subtitle">Alles was du ueber plexus wissen musst — fuer Menschen und Agenten.</p>
+<h1>Help</h1>
+<p class="subtitle">Everything you need to know about plexus — for humans and agents.</p>
 
 <div class="markdown-content">
 
-<h2>Was ist plexus?</h2>
-<p>plexus ist ein selbst-gehosteter Knowledge Graph fuer KI-Agenten. Statt bei jeder Frage den Kontext neu aufzubauen, akkumuliert plexus Wissen inkrementell: Fakten, Entscheidungen, Konzepte, Projekte — alles als typisierte Entities mit benannten Verbindungen.</p>
-<p>Dein KI-Assistent (Claude Web, Claude Desktop, Claude Code) hat ueber MCP direkten Zugriff auf den gesamten Wissensgraph.</p>
+<h2>What is plexus?</h2>
+<p>plexus is a self-hosted knowledge graph for AI agents. Instead of rebuilding context for every question, plexus accumulates knowledge incrementally: facts, decisions, concepts, projects — all as typed entities with named connections between them.</p>
+<p>Your AI assistant (Claude web, Claude Desktop, Claude Code) reaches the whole graph through the Model Context Protocol (MCP). The dashboard is read-only for humans; only agents write.</p>
 
-<h2>Entities &amp; Kinds</h2>
-<p>Jeder Wissens-Eintrag ist eine <strong>Entity</strong> mit einem <strong>Kind</strong> (Typ). Die verfuegbaren Kinds:</p>
+<h2>First run: the bootstrap</h2>
+<p>When plexus boots for the very first time on a fresh database, no user exists yet. The admin token from <code>PLEXUS_ADMIN_TOKEN</code> is used once to create the first admin account, then becomes irrelevant for day-to-day use.</p>
+<ol>
+<li>Open the dashboard URL (<code>http://localhost:8787</code> by default). Plexus detects that no user exists and redirects to <code>/bootstrap</code>.</li>
+<li>Enter an admin name (letters, digits, <code>_</code>, <code>-</code>, <code>.</code>). Submit. This uses the <code>PLEXUS_ADMIN_TOKEN</code> via a cookie set by the login flow — you never paste the admin token in the browser.</li>
+<li>Plexus creates the admin user and shows a personal token (<code>pt_...</code>) <strong>exactly once</strong>. Copy it into your password manager <em>right now</em>.</li>
+<li>Click <strong>Continue to login</strong>. You land on <code>/auth/login</code>.</li>
+<li>Paste the <code>pt_</code> token. Plexus sees you have no passkey yet and shows the enrollment screen.</li>
+<li>Click <strong>Register passkey now</strong>. Your browser prompts for Touch&nbsp;ID / Face&nbsp;ID / Windows&nbsp;Hello / a hardware key.</li>
+<li>Plexus <strong>automatically rotates your token</strong> after enrollment and shows the new one. The initial token is now dead. Save the new token (overwrite the old entry in your password manager).</li>
+<li>Click <strong>Sign in with new token</strong>. Paste the rotated token, confirm with the passkey — you land on <code>/home</code>.</li>
+</ol>
+<p><strong>Why the rotation?</strong> The initial token is a one-shot invitation code. If anything intercepted it during transfer (mail, chat, screen share), rotation makes that capture worthless the moment you sign in. After rotation, only the new token + passkey combination signs you in.</p>
+<p>From now on the <code>PLEXUS_ADMIN_TOKEN</code> environment variable is only used for admin-plane endpoints (e.g. <code>POST /admin/backup</code> and the low-level reset endpoints). It is <strong>rejected on the MCP endpoint</strong> and on the dashboard login after bootstrap.</p>
+
+<h2>Entities &amp; kinds</h2>
+<p>Every piece of knowledge is an <strong>entity</strong> with a typed <strong>kind</strong>. The built-in kinds:</p>
 <div class="table-wrapper">
 <table>
-<thead><tr><th>Kind</th><th>Zweck</th></tr></thead>
+<thead><tr><th>Kind</th><th>Purpose</th></tr></thead>
 <tbody>
-<tr><td><code>concept</code></td><td>Abstrakte Idee, Konzept, Pattern</td></tr>
-<tr><td><code>decision</code></td><td>Architecture Decision Record (ADR), Entscheidung</td></tr>
-<tr><td><code>fact</code></td><td>Atomare Faktenaussage, Risiko, Meilenstein</td></tr>
-<tr><td><code>project</code></td><td>Projekt-Container</td></tr>
-<tr><td><code>task</code></td><td>Aufgabe, Todo</td></tr>
-<tr><td><code>document</code></td><td>Dokument mit strukturiertem Inhalt</td></tr>
-<tr><td><code>note</code></td><td>Freie Notiz, Quelle, Provenance-Anker</td></tr>
-<tr><td><code>config</code></td><td>Konfigurationswerte, URLs, Deployment-Infos</td></tr>
-<tr><td><code>secret</code></td><td>Verschluesseltes Geheimnis (nicht shareable)</td></tr>
-<tr><td><code>template</code></td><td>Wiederverwendbares Template, Skill, Pattern</td></tr>
-<tr><td><code>tag</code></td><td>Kategorisierungs-Tag</td></tr>
-<tr><td><code>inbox_item</code></td><td>GTD-Inbox-Eintrag</td></tr>
-<tr><td><code>user</code></td><td>User-Referenz</td></tr>
+<tr><td><code>concept</code></td><td>Abstract idea, concept, pattern</td></tr>
+<tr><td><code>decision</code></td><td>Architecture Decision Record (ADR), decision</td></tr>
+<tr><td><code>fact</code></td><td>Atomic fact, risk, milestone, incident</td></tr>
+<tr><td><code>project</code></td><td>Project container</td></tr>
+<tr><td><code>task</code></td><td>Task, todo</td></tr>
+<tr><td><code>document</code></td><td>Document with structured content</td></tr>
+<tr><td><code>note</code></td><td>Free-form note, source, provenance anchor</td></tr>
+<tr><td><code>config</code></td><td>Configuration values, URLs, deployment info</td></tr>
+<tr><td><code>secret</code></td><td>Encrypted secret — not shareable, not MCP-readable</td></tr>
+<tr><td><code>template</code></td><td>Reusable template, skill, pattern</td></tr>
+<tr><td><code>skill</code></td><td>Plexus skill (markdown body + trigger phrases)</td></tr>
+<tr><td><code>tag</code></td><td>Categorisation tag</td></tr>
+<tr><td><code>inbox_item</code></td><td>GTD inbox entry</td></tr>
+<tr><td><code>user</code></td><td>User reference</td></tr>
 </tbody>
 </table>
 </div>
-<p>Entities werden <strong>ausschliesslich ueber MCP</strong> angelegt — das Dashboard ist read-only fuer Content.</p>
+<p>Entities are created <strong>only through MCP</strong> — the dashboard is read-only for content.</p>
 
-<h2>Edges &amp; Relations</h2>
-<p>Verbindungen zwischen Entities heissen <strong>Edges</strong>. Jede Edge hat eine typisierte <strong>Relation</strong>:</p>
-<p><code>contains</code>, <code>part_of</code>, <code>depends_on</code>, <code>blocks</code>, <code>supersedes</code>, <code>documents</code>, <code>implements</code>, <code>relates_to</code>, <code>derived_from</code>, <code>triggered_by</code>, <code>produces</code>, <code>consumes</code>, <code>mentions</code>, <code>owned_by</code>, <code>executed_by</code>, <code>has_version</code>, <code>variant_of</code>, und mehr.</p>
-<p>Edges sind <strong>temporal</strong>: sie haben <code>valid_from</code> und <code>valid_to</code>. "Loeschen" setzt <code>valid_to</code> — die Edge bleibt als Historie erhalten.</p>
+<h2>Edges &amp; relations</h2>
+<p>Connections between entities are called <strong>edges</strong>. Each edge carries a typed <strong>relation</strong>:</p>
+<p><code>contains</code>, <code>part_of</code>, <code>depends_on</code>, <code>blocks</code>, <code>supersedes</code>, <code>documents</code>, <code>implements</code>, <code>relates_to</code>, <code>derived_from</code>, <code>triggered_by</code>, <code>produces</code>, <code>consumes</code>, <code>mentions</code>, <code>owned_by</code>, <code>executed_by</code>, <code>has_version</code>, <code>variant_of</code>, and more.</p>
+<p>Edges are <strong>temporal</strong>: they carry <code>valid_from</code> and <code>valid_to</code>. "Deleting" sets <code>valid_to</code> — the edge stays as history. <code>get_related(as_of: …)</code> returns the graph at any point in the past.</p>
 
 <h2>Contexts</h2>
-<p>Contexts sind <strong>implizite Namespaces</strong>. Ein Context entsteht automatisch wenn ein Agent eine Entity mit einem neuen Context-String anlegt:</p>
-<p><code>save_entity({ kind: "concept", title: "Mein Thema", context: "mein-projekt" })</code></p>
-<p>Ab sofort taucht der Context in allen Filtern auf. Er verschwindet automatisch wenn keine aktiven Entities mehr drin sind. Es gibt keine Registry, keinen Admin-Schritt.</p>
+<p>Contexts are <strong>implicit namespaces</strong>. A context is created automatically when an agent saves an entity with a new context string:</p>
+<p><code>save_entity({ kind: "concept", title: "My topic", context: "my-project" })</code></p>
+<p>From that moment on the context appears in every filter. It disappears automatically once no active entities reference it. No registry, no admin step.</p>
 
-<h2>MCP-Anbindung</h2>
-<p><strong>Claude Web (claude.ai):</strong> Settings → Integrations → Add Custom Integration → <code>https://<your-plexus-host>/mcp</code>. plexus handelt OAuth automatisch — du siehst einen Consent-Screen und klickst "Zulassen".</p>
+<h2>Connecting an agent (MCP)</h2>
+<p><strong>Claude web (claude.ai):</strong> Settings → Integrations → Add Custom Integration → <code>https://&lt;your-plexus-host&gt;/mcp</code>. Plexus handles OAuth automatically — you'll see a consent screen and click <em>Allow</em>.</p>
 <p><strong>Claude Code (CLI):</strong></p>
-<p><code>claude mcp add plexus --transport http --header "Authorization: Bearer pt_DEIN_TOKEN" https://<your-plexus-host>/mcp</code></p>
-<p><strong>Claude Desktop:</strong> In <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>:</p>
+<pre><code>claude mcp add plexus --transport http \\
+  --header "Authorization: Bearer pt_YOUR_TOKEN" \\
+  https://&lt;your-plexus-host&gt;/mcp</code></pre>
+<p><strong>Claude Desktop:</strong> edit <code>~/Library/Application&nbsp;Support/Claude/claude_desktop_config.json</code>:</p>
 <pre><code>{
   "mcpServers": {
     "plexus": {
       "type": "http",
-      "url": "https://<your-plexus-host>/mcp",
-      "headers": { "Authorization": "Bearer pt_DEIN_TOKEN" }
+      "url": "https://&lt;your-plexus-host&gt;/mcp",
+      "headers": { "Authorization": "Bearer pt_YOUR_TOKEN" }
     }
   }
 }</code></pre>
-<p>13 MCP-Tools stehen zur Verfuegung: <code>save_entity</code>, <code>get_entity</code>, <code>list_entities</code>, <code>search_entities</code>, <code>update_entity</code>, <code>archive_entity</code>, <code>link_entities</code>, <code>unlink_entity</code>, <code>get_related</code>, <code>list_kinds</code>, <code>list_relations</code>, <code>context_load</code>, <code>lint_graph</code>.</p>
+<p>Plexus exposes 15 MCP tools: <code>save_entity</code>, <code>get_entity</code>, <code>list_entities</code>, <code>search_entities</code>, <code>update_entity</code>, <code>archive_entity</code>, <code>link_entities</code>, <code>unlink_entity</code>, <code>get_related</code>, <code>list_kinds</code>, <code>list_relations</code>, <code>context_load</code>, <code>lint_graph</code>, <code>list_skills</code>, <code>load_skill</code>.</p>
 
-<h2>User-Onboarding</h2>
+<h2>Inviting additional users</h2>
+<p>After the bootstrap, add users from <a href="/users">/users</a> (admin only):</p>
 <ol>
-<li>Admin erstellt User unter <a href="/users">/users</a> → initialer <code>pt_</code>-Token wird einmalig angezeigt</li>
-<li>Admin uebergibt Token an den neuen User (sicherer Kanal)</li>
-<li>User oeffnet <a href="/auth/login">/auth/login</a> und gibt den Token ein</li>
-<li>Passkey-Enrollment: Touch ID / Face ID / YubiKey tappen</li>
-<li><strong>Token wird automatisch rotiert</strong> — neuer Token wird angezeigt, alter ist tot</li>
-<li>User speichert neuen Token im Passwort-Manager</li>
-<li>User klickt "Mit neuem Token einloggen" → Login mit neuem Token + Passkey</li>
+<li>Admin creates a user on <a href="/users">/users</a>. An initial <code>pt_</code> token is shown <em>once</em>.</li>
+<li>Admin hands the token to the new user through a secure channel.</li>
+<li>New user opens <a href="/auth/login">/auth/login</a>, enters the token.</li>
+<li>Passkey enrollment: Touch&nbsp;ID / Face&nbsp;ID / YubiKey / Windows&nbsp;Hello.</li>
+<li><strong>Token is automatically rotated</strong> — the new token is shown, the old one is dead.</li>
+<li>User saves the new token in a password manager.</li>
+<li>User clicks <em>Sign in with new token</em> → final sign-in with the new token + passkey.</li>
 </ol>
-<p>Der initiale Token ist ein Einmal-Einladungs-Code. Wenn er bei der Uebertragung abgefangen wird, ist das irrelevant — er ist nach dem ersten Login entwertet.</p>
+<p>Same reasoning as the bootstrap rotation: the initial token is a one-shot invitation. If it leaks in transit, it is worthless after the first successful enrollment.</p>
 
 <h2>Passkeys</h2>
-<p>Jeder Account braucht <strong>mindestens einen Passkey</strong>. Du kannst bis zu 3 registrieren (z.B. Laptop + Handy + YubiKey als Backup).</p>
-<p>Verwalte deine Passkeys unter <a href="/passkeys">/passkeys</a>. Der letzte Passkey laesst sich nicht loeschen.</p>
-<p>Bei jedem Login und bei sensiblen Aktionen (Share-Link erstellen, Token resetten) wird <strong>Biometrie oder PIN erzwungen</strong> — ein einfacher Tap ohne Verifikation reicht nicht.</p>
+<p>Every account needs <strong>at least one passkey</strong>. You can register up to 3 (e.g. laptop + phone + hardware key as backup).</p>
+<p>Manage passkeys on <a href="/passkeys">/passkeys</a>. The last passkey cannot be deleted.</p>
+<p>For every sign-in and for sensitive actions (creating a share link, resetting a token) plexus enforces <strong>biometric or PIN verification</strong> — a simple tap without verification is not accepted.</p>
 
-<h2>Users vs. Tokens</h2>
-<p>In plexus sind <strong>User</strong> und <strong>Tokens</strong> getrennte Konzepte:</p>
+<h2>Users vs. tokens</h2>
+<p>In plexus, <strong>users</strong> and <strong>tokens</strong> are separate concepts:</p>
 <div class="table-wrapper">
 <table>
-<thead><tr><th>Konzept</th><th>Was es ist</th><th>Wo verwaltet</th></tr></thead>
+<thead><tr><th>Concept</th><th>What it is</th><th>Where to manage it</th></tr></thead>
 <tbody>
-<tr><td><strong>User</strong></td><td>Account mit Name + Passkey. Wird vom Admin erstellt.</td><td><a href="/users">/users</a> (nur Admin)</td></tr>
-<tr><td><strong>Token</strong></td><td>MCP-Zugangsschluessel (<code>pt_...</code>) mit eigenem Scope. Jeder User kann mehrere haben.</td><td><a href="/tokens">/tokens</a> (jeder User)</td></tr>
+<tr><td><strong>User</strong></td><td>Account with name + passkey. Created by an admin.</td><td><a href="/users">/users</a> (admin only)</td></tr>
+<tr><td><strong>Token</strong></td><td>MCP credential (<code>pt_…</code>) with its own scope. Each user can have many.</td><td><a href="/tokens">/tokens</a> (every user)</td></tr>
 </tbody>
 </table>
 </div>
 
-<h3>Warum mehrere Tokens?</h3>
-<p>Verschiedene Clients brauchen verschiedene Rechte:</p>
+<h3>Why multiple tokens?</h3>
+<p>Different clients need different rights:</p>
 <div class="table-wrapper">
 <table>
-<thead><tr><th>Token-Label</th><th>Permission</th><th>Contexts</th><th>Zweck</th></tr></thead>
+<thead><tr><th>Token label</th><th>Permission</th><th>Contexts</th><th>Purpose</th></tr></thead>
 <tbody>
-<tr><td>default</td><td>write</td><td>alle</td><td>Normaler MCP-Zugang (Claude Web, Claude Code)</td></tr>
-<tr><td>monitoring</td><td>read</td><td>dev</td><td>Nur lesend, nur dev-Context</td></tr>
-<tr><td>ci-pipeline</td><td>write</td><td>dev</td><td>CI-Job, laeuft nach 30 Tagen ab</td></tr>
+<tr><td>default</td><td>write</td><td>all</td><td>Normal MCP access (Claude web, Claude Code)</td></tr>
+<tr><td>monitoring</td><td>read</td><td>dev</td><td>Read-only, dev context only</td></tr>
+<tr><td>ci-pipeline</td><td>write</td><td>dev</td><td>CI job, expires after 30 days</td></tr>
 </tbody>
 </table>
 </div>
 
-<h3>Token erstellen</h3>
-<p>Unter <a href="/tokens">/tokens</a> → "Neuen Token erstellen":</p>
+<h3>Create a token</h3>
+<p>On <a href="/tokens">/tokens</a> → <em>Create new token</em>:</p>
 <ol>
-<li><strong>Label</strong> vergeben (z.B. "Claude Code", "Monitoring")</li>
-<li><strong>Permission</strong> waehlen: <code>read</code> (nur lesen), <code>write</code> (lesen + schreiben), <code>admin</code> (alles)</li>
-<li><strong>Ablauf</strong> optional setzen (Tage bis der Token automatisch ablaeuft)</li>
-<li><strong>Contexts</strong> optional einschraenken (Checkboxen — leer = alle Contexts erlaubt)</li>
-<li><strong>Kinds</strong> optional einschraenken (Checkboxen — leer = alle Kinds erlaubt)</li>
-<li>"Token erstellen" klicken → der neue <code>pt_</code>-Token wird <strong>einmalig</strong> angezeigt</li>
+<li>Pick a <strong>label</strong> (e.g. "Claude Code", "Monitoring")</li>
+<li>Select a <strong>permission</strong>: <code>read</code> (read-only), <code>write</code> (read + write), <code>admin</code> (everything)</li>
+<li>Optional <strong>expiry</strong> in days (token expires automatically after this many days)</li>
+<li>Optional <strong>contexts</strong> (checkboxes — empty = all contexts allowed)</li>
+<li>Optional <strong>kinds</strong> (checkboxes — empty = all kinds allowed)</li>
+<li>Click <em>Create token</em> → the new <code>pt_</code> token is shown <strong>exactly once</strong>.</li>
 </ol>
-<p><strong>Wichtig:</strong> Den Token sofort im Passwort-Manager speichern — er wird nie wieder angezeigt.</p>
+<p><strong>Save the token in your password manager immediately</strong> — it will never be shown again.</p>
 
-<h3>Token-Scope-Enforcement</h3>
-<p>Der Scope wird bei jedem MCP-Call automatisch geprueft:</p>
+<h3>Token scope enforcement</h3>
+<p>Scope is checked on every MCP call:</p>
 <ul>
-<li>Ein <code>read</code>-Token kann <code>list_entities</code>, <code>search_entities</code>, <code>get_related</code> aufrufen — aber nicht <code>save_entity</code>, <code>update_entity</code>, <code>link_entities</code></li>
-<li>Ein Token mit <code>contexts: [dev]</code> sieht nur Entities im <code>dev</code>-Context. Ein <code>save_entity</code> mit <code>context: "privat"</code> wird abgelehnt.</li>
-<li>Ein Token mit <code>kinds: [concept, fact]</code> kann nur Concepts und Facts sehen und anlegen.</li>
+<li>A <code>read</code> token can call <code>list_entities</code>, <code>search_entities</code>, <code>get_related</code> — but not <code>save_entity</code>, <code>update_entity</code>, <code>link_entities</code>.</li>
+<li>A token with <code>contexts: [dev]</code> only sees entities in the <code>dev</code> context. A <code>save_entity</code> with <code>context: "private"</code> is rejected.</li>
+<li>A token with <code>kinds: [concept, fact]</code> can only see and create concepts and facts.</li>
 </ul>
 
-<h3>Token widerrufen</h3>
-<p>Unter <a href="/tokens">/tokens</a> → "Revoke" Button pro Token. Der letzte aktive Token kann nicht widerrufen werden (mindestens einer muss bleiben).</p>
+<h3>Revoke a token</h3>
+<p>On <a href="/tokens">/tokens</a> → <em>Revoke</em> per row. The last active token cannot be revoked (at least one must remain so you can still sign in).</p>
 
-<h3>Erster Login: Token-Rotation</h3>
-<p>Beim ersten Passkey-Enrollment wird der Token automatisch rotiert. Der initiale Token (den der Admin uebergeben hat) stirbt, ein neuer wird angezeigt. Das schuetzt gegen Abfangen bei der Uebertragung — der alte Token ist nach dem ersten Login wertlos.</p>
+<h3>First sign-in: token rotation</h3>
+<p>On first passkey enrollment, plexus rotates the token automatically. The initial token (the invitation the admin handed you) dies, a new one is shown. This protects against interception during transfer — the old token is worthless after the first sign-in.</p>
 
-<h2>Share-Links</h2>
-<p>Du kannst einzelne Entities als <strong>einmalige Read-Only-Links</strong> teilen:</p>
+<h2>Share links</h2>
+<p>You can share individual entities as <strong>one-time read-only links</strong>:</p>
 <ol>
-<li>Entity-Detail oeffnen → "Teilen (Step-Up Passkey)" klicken</li>
-<li>Passkey tappen (Biometrie/PIN)</li>
-<li>Share-URLs werden einmalig in <strong>drei Varianten</strong> angezeigt (60 Minuten gueltig), jeweils mit Copy-Button</li>
-<li>Empfaenger oeffnet die URL → sieht die Entity read-only, ohne Login</li>
-<li>Zweiter Aufruf: 410 Gone (Link ist verbraucht)</li>
+<li>Open an entity page → click <em>Share</em>.</li>
+<li>Tap your passkey (biometric/PIN).</li>
+<li>Share URLs are shown once in <strong>three variants</strong> (valid 60 minutes by default), each with a copy button.</li>
+<li>The recipient opens the URL → sees the entity read-only, without signing in.</li>
+<li>Second visit: <code>410 Gone</code> (the link is consumed).</li>
 </ol>
-<p><code>kind=secret</code> Entities koennen nicht geteilt werden. Pro Entity maximal ein aktiver Link. Verwalte offene Links unter <a href="/shares">/shares</a>.</p>
+<p><code>kind=secret</code> entities cannot be shared. At most one active link per entity. Manage open links on <a href="/shares">/shares</a>.</p>
 
-<h3>Drei Output-Formate — ein Token, drei Audiences</h3>
-<p>Jeder Share-Token kann in drei Formaten abgerufen werden, ueber URL-Query-Parameter. Alle drei Varianten teilen sich denselben Token und denselben Einmal-Consume — wer den Link im Browser oeffnet, verbraucht denselben Token, den jemand mit <code>?raw</code> abruft. Das Dashboard zeigt dir nach dem Erstellen alle drei Links gleichzeitig mit Copy-Buttons an, damit du dir die richtige Variante fuer den richtigen Empfaenger aussuchen kannst.</p>
+<h3>Three output formats — one token, three audiences</h3>
+<p>Every share token can be fetched in three formats via URL query parameters. All three share the same token and the same one-time consumption — whoever opens the browser link consumes the same token as someone pulling <code>?raw</code>. The dashboard shows you all three links at once after creation so you can pick the right one per recipient.</p>
 <div class="table-wrapper">
 <table>
-<thead><tr><th>URL</th><th>Content-Type</th><th>Wofuer</th></tr></thead>
+<thead><tr><th>URL</th><th>Content-Type</th><th>Use</th></tr></thead>
 <tbody>
-<tr><td><code>/share/:token</code></td><td><code>text/html</code></td><td><strong>Mensch im Browser</strong> — voll gerendertes Dashboard-Layout mit Markdown-Body, Attributes, Badges. Der Standard-Link.</td></tr>
-<tr><td><code>/share/:token?raw</code></td><td><code>text/markdown</code></td><td><strong>LLM oder Terminal</strong> — verbatim Markdown mit Metadata-Block. Pipe es in <code>glow</code> fuer farbige Terminal-Anzeige oder in einen Agent-Context-Window ohne HTML-Rauschen.</td></tr>
-<tr><td><code>/share/:token?raw=json</code></td><td><code>application/json</code></td><td><strong>CLI / Automation</strong> — pretty-printed JSON mit allen Entity-Feldern ausser <code>created_by</code> / <code>updated_by</code>. Pipe es in <code>jq</code> fuer strukturierten Zugriff auf einzelne Felder.</td></tr>
+<tr><td><code>/share/:token</code></td><td><code>text/html</code></td><td><strong>Human in browser</strong> — full dashboard layout with rendered markdown, attributes, badges. The default.</td></tr>
+<tr><td><code>/share/:token?raw</code></td><td><code>text/markdown</code></td><td><strong>LLM or terminal</strong> — verbatim markdown with metadata block. Pipe into <code>glow</code> for colour in the terminal, or into an agent context window without HTML noise.</td></tr>
+<tr><td><code>/share/:token?raw=json</code></td><td><code>application/json</code></td><td><strong>CLI / automation</strong> — pretty JSON with every entity field except <code>created_by</code> / <code>updated_by</code>. Pipe into <code>jq</code>.</td></tr>
 </tbody>
 </table>
 </div>
-<p>Beispiele fuer die drei Varianten:</p>
+<p>Examples:</p>
 <pre><code># Browser
-open https://<your-plexus-host>/share/st_xxx
+open https://&lt;your-plexus-host&gt;/share/st_xxx
 
-# Markdown an Agent/Terminal
-curl -s 'https://<your-plexus-host>/share/st_xxx?raw' | glow -
+# Markdown to agent / terminal
+curl -s 'https://&lt;your-plexus-host&gt;/share/st_xxx?raw' | glow -
 
-# JSON fuer jq
-curl -s 'https://<your-plexus-host>/share/st_xxx?raw=json' | jq '.body'</code></pre>
-<p>Alternative Parameter-Namen <code>?format=md</code>, <code>?format=json</code>, <code>?format=html</code> funktionieren identisch. Unknown-Format-Werte fallen sicher auf HTML zurueck. Der JSON-Output strippt bewusst <code>created_by</code> und <code>updated_by</code>, damit anonyme Empfaenger keine internen User-IDs sehen. Das gewaehlte Format wird im Activity-Log mitgeschrieben (<code>metadata.format</code>), damit Browser-Klicks von CLI-Automation trennbar sind.</p>
+# JSON for jq
+curl -s 'https://&lt;your-plexus-host&gt;/share/st_xxx?raw=json' | jq '.body'</code></pre>
+<p>Alternative parameter names <code>?format=md</code>, <code>?format=json</code>, <code>?format=html</code> work identically. Unknown format values fall back to HTML safely. The JSON output deliberately strips <code>created_by</code> / <code>updated_by</code> so anonymous recipients cannot see internal user IDs. The chosen format is logged (<code>activity_log.metadata.format</code>) so browser clicks can be distinguished from CLI automation.</p>
 
-<h2>Graph-Ansicht</h2>
-<p>Unter <a href="/graph">/graph</a> siehst du den gesamten Wissensgraph als interaktives Force-Layout:</p>
+<h2>Graph view</h2>
+<p>On <a href="/graph">/graph</a> the full knowledge graph is rendered as an interactive force layout:</p>
 <ul>
-<li>Knoten = Entities, Farbe = Kind, Buchstabe = Typ-Kuerzel</li>
-<li>Kanten = Edges mit Relation-Label</li>
-<li><strong>Einfach-Klick</strong> auf Knoten → <strong>Hub-Fokus</strong>: der Knoten und seine direkten Nachbarn werden hervorgehoben, der Rest wird gedimmt. Nochmal klicken hebt den Fokus auf.</li>
-<li><strong>Doppelklick</strong> auf Knoten → navigiert zum Entity-Detail</li>
-<li>Hover → Tooltip mit Titel + Kind + Context</li>
-<li>Scroll = Zoom, Drag = Verschieben</li>
-<li>Legende links: Checkboxen zum Ein-/Ausblenden einzelner Kinds</li>
+<li>Nodes = entities. Colour and letter indicate the kind.</li>
+<li>Edges = relations between entities, labelled.</li>
+<li><strong>Single click</strong> on a node → <strong>hub focus</strong>: the node and its direct neighbours are highlighted, the rest is dimmed. Click again to release focus.</li>
+<li><strong>Double click</strong> on a node → navigates to the entity detail.</li>
+<li>Hover → tooltip with title + kind + context.</li>
+<li>Scroll = zoom, drag = pan.</li>
+<li>Left-hand legend: checkboxes toggle individual kinds on/off.</li>
 </ul>
 
-<h2>OAuth-Clients</h2>
-<p>Unter <a href="/oauth/clients">/oauth/clients</a> siehst du welche externen Anwendungen (z.B. claude.ai) auf deinen Graph zugreifen. Du kannst den Zugriff jederzeit widerrufen.</p>
+<h2>OAuth clients</h2>
+<p>On <a href="/oauth/clients">/oauth/clients</a> you see which external applications (e.g. claude.ai) have access to your graph. You can revoke access at any time.</p>
 
-<h2>lint_graph — Graph-Gesundheit</h2>
-<p>Das MCP-Tool <code>lint_graph</code> prueft den Graph auf:</p>
+<h2>lint_graph — graph health</h2>
+<p>The <code>lint_graph</code> MCP tool checks the graph for:</p>
 <ul>
-<li><strong>Orphans:</strong> Entities ohne jede Verbindung</li>
-<li><strong>Stale:</strong> Entities die seit X Tagen nicht aktualisiert wurden</li>
-<li><strong>Duplikate:</strong> Entities mit identischem Titel</li>
+<li><strong>Orphans:</strong> entities with no incoming or outgoing edges.</li>
+<li><strong>Stale:</strong> entities untouched for N days.</li>
+<li><strong>Duplicates:</strong> entities with identical titles.</li>
 </ul>
-<p>Ruf es regelmaessig auf oder lass einen Agent es als Teil des Weekly Review machen.</p>
+<p>Call it regularly or have an agent run it as part of a weekly review.</p>
 
 <h2>Backup</h2>
-<p>plexus bietet einen Admin-Token-geschuetzten Backup-Endpoint der den gesamten Graph als portables JSON exportiert:</p>
-<pre><code>curl -H "Authorization: Bearer ADMIN_TOKEN" https://<your-plexus-host>/admin/backup > backup.json</code></pre>
-<p>Der Export enthaelt: Entities, Edges, Kinds, Relations, Users (ohne Token-Hashes), Activity-Log (letzte 1000). Er enthaelt NICHT: Sessions, Passkeys, OAuth-Tokens, Share-Tokens (Sicherheit).</p>
-<p>Das Format ist DB-agnostisch — die JSON-Datei kann in jede beliebige Graph-DB oder relationale DB importiert werden. Empfehlung: taeglich per Cron-Job sichern.</p>
+<p>Plexus exposes an admin-token-protected backup endpoint that exports the whole graph as portable JSON:</p>
+<pre><code>curl -H "Authorization: Bearer \$PLEXUS_ADMIN_TOKEN" \\
+  https://&lt;your-plexus-host&gt;/admin/backup \\
+  &gt; backup.json</code></pre>
+<p>The export contains: entities, edges, kinds, relations, users (without token hashes). It does <strong>not</strong> contain sessions, passkeys, OAuth tokens, personal tokens, or share tokens — credentials and session state are never backed up. Pass <code>?include_audit=1</code> to add the last 1000 activity-log rows under a separate filename (opt-in because those rows contain personal data).</p>
+<p>The format is DB-agnostic — the JSON file can be re-imported into any graph or relational database. Recommended: daily backup via cron.</p>
 
-<h2>Admin-Tools</h2>
+<h2>Admin tools</h2>
 <ul>
-<li><strong>Store-Reset</strong> (<code>POST /admin/db-reset</code>): Loescht ALLE Daten (Users, Entities, Edges, alles). Benoetigt Admin-Token + Bestaetigungsphrase <code>{"confirm":"RESET ALL USER STATE"}</code>. Kinds und Relations bleiben erhalten.</li>
-<li><strong>Auth-Reset</strong> (<code>POST /admin/auth-reset</code>): Loescht NUR Auth-State (Users, Sessions, Passkeys, Tokens). Content (Entities, Edges, Activity) bleibt erhalten. Bestaetigungsphrase: <code>{"confirm":"RESET AUTH STATE"}</code>.</li>
-<li><strong>Backup</strong> (<code>GET /admin/backup</code>): Portabler JSON-Export des gesamten Graphen.</li>
+<li><strong>Store reset</strong> (<code>POST /admin/db-reset</code>): deletes ALL data (users, entities, edges, everything). Requires the admin token plus the confirmation phrase <code>{"confirm":"RESET ALL USER STATE"}</code>. Kinds and relations survive.</li>
+<li><strong>Auth reset</strong> (<code>POST /admin/auth-reset</code>): deletes ONLY auth state (users, sessions, passkeys, tokens). Content (entities, edges, activity) survives. Confirmation phrase: <code>{"confirm":"RESET AUTH STATE"}</code>.</li>
+<li><strong>Backup</strong> (<code>GET /admin/backup</code>): portable JSON export of the whole graph.</li>
 </ul>
 
 </div>
 `;
 
   return layout({
-    title: 'Hilfe',
+    title: 'Help',
     body,
     currentUser,
     activePath: '/help',

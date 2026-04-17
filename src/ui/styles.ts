@@ -843,9 +843,9 @@ hr { border: none; border-top: 1px solid var(--color-divider); margin: 1.54rem 0
   /* Markdown content scales down on mobile so body text feels
      proportional on a narrow viewport. Desktop defaults of 1.08rem
      body and 1.54rem h1 are too big on a 375-430px phone screen —
-     user reported "text passt sich nicht dem bildschirm an, bleibt
-     uebergroß". Numbers chosen so a 40-60 char markdown paragraph
-     fits on one or two lines in a .card on an iPhone in portrait. */
+     markdown text stayed oversized and broke the layout. Numbers
+     chosen so a 40-60 char markdown paragraph fits on one or two
+     lines in a .card on an iPhone in portrait. */
   .markdown-content h1 { font-size: 1.23rem; margin-top: 1.23rem; padding-bottom: 0.31rem; }
   .markdown-content h2 { font-size: 1.08rem; margin-top: 1rem; padding-bottom: 0.23rem; }
   .markdown-content h3 { font-size: 0.96rem; margin-top: 0.77rem; }

@@ -152,7 +152,7 @@ const GRAPH_SCRIPT = `
     if (nodes.length === 0) {
       var msg = document.createElement('p');
       msg.style.cssText = 'padding:2rem;color:var(--color-subtle);text-align:center;position:absolute;inset:0;display:flex;align-items:center;justify-content:center';
-      msg.textContent = 'Keine Entities im Graph.';
+      msg.textContent = 'No entities in the graph.';
       container.appendChild(msg);
       return;
     }

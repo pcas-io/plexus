@@ -167,14 +167,14 @@ export function pagesRoutes(deps: PageDeps): Hono {
     }
     const name = typeof form.name === 'string' ? form.name.trim() : '';
     if (!name || !/^[a-zA-Z0-9_.-]+$/.test(name) || name.length > 64) {
-      setFlash(c, { type: 'danger', message: 'Ungueltiger Name.' });
+      setFlash(c, { type: 'danger', message: 'Invalid name.' });
       return c.redirect('/bootstrap');
     }
     try {
       const result = await deps.users.create(name, true);
-      setFlash(c, { type: 'success', message: `Admin-User "${name}" angelegt.`, token: result.token });
+      setFlash(c, { type: 'success', message: `Admin user "${name}" created.`, token: result.token });
     } catch {
-      setFlash(c, { type: 'danger', message: 'Fehler beim Anlegen.' });
+      setFlash(c, { type: 'danger', message: 'Failed to create user.' });
     }
     return c.redirect('/bootstrap');
   });
@@ -473,7 +473,7 @@ export function pagesRoutes(deps: PageDeps): Hono {
       });
       setFlash(c, {
         type: 'success',
-        message: `User "${name}" angelegt.`,
+        message: `User "${name}" created.`,
         token: result.token,
         tokenUser: name,
       });
@@ -482,8 +482,8 @@ export function pagesRoutes(deps: PageDeps): Hono {
       setFlash(c, {
         type: 'danger',
         message: msg.includes('already exists') || msg.includes('Duplicated')
-          ? 'User existiert bereits.'
-          : 'Fehler beim Anlegen.',
+          ? 'User already exists.'
+          : 'Failed to create user.',
       });
     }
     return c.redirect('/users');
@@ -495,7 +495,7 @@ export function pagesRoutes(deps: PageDeps): Hono {
     const name = c.req.param('name');
     const result = await deps.users.resetToken(name);
     if (!result) {
-      setFlash(c, { type: 'danger', message: `User "${name}" nicht gefunden.` });
+      setFlash(c, { type: 'danger', message: `User "${name}" not found.` });
     } else {
       setFlash(c, {
         type: 'success',
@@ -513,14 +513,14 @@ export function pagesRoutes(deps: PageDeps): Hono {
     const name = c.req.param('name');
     const currentUser = c.get('dashboardUser');
     if (name === currentUser.name) {
-      setFlash(c, { type: 'danger', message: 'Du kannst dich nicht selbst deaktivieren.' });
+      setFlash(c, { type: 'danger', message: 'You cannot deactivate yourself.' });
       return c.redirect('/users');
     }
     const user = await deps.users.deactivate(name);
     if (!user) {
-      setFlash(c, { type: 'danger', message: `User "${name}" nicht gefunden.` });
+      setFlash(c, { type: 'danger', message: `User "${name}" not found.` });
     } else {
-      setFlash(c, { type: 'success', message: `User "${name}" deaktiviert.` });
+      setFlash(c, { type: 'success', message: `User "${name}" deactivated.` });
     }
     return c.redirect('/users');
   });
@@ -557,7 +557,7 @@ export function pagesRoutes(deps: PageDeps): Hono {
     }
     const active = await deps.sessions.listActiveForUser(user.id);
     if (!active.some((s) => String(s.id) === id)) {
-      setFlash(c, { type: 'danger', message: 'Session nicht gefunden.' });
+      setFlash(c, { type: 'danger', message: 'Session not found.' });
       return c.redirect('/sessions');
     }
     await deps.sessions.revoke(id);
@@ -615,9 +615,9 @@ export function pagesRoutes(deps: PageDeps): Hono {
         scopeKinds: scopeKinds.length > 0 ? scopeKinds : undefined,
         expiresInDays: expiresRaw > 0 ? expiresRaw : undefined,
       });
-      setFlash(c, { type: 'success', message: `Token "${label}" erstellt.`, token: rawToken });
+      setFlash(c, { type: 'success', message: `Token "${label}" created.`, token: rawToken });
     } catch (err) {
-      setFlash(c, { type: 'danger', message: 'Token-Erstellung fehlgeschlagen.' });
+      setFlash(c, { type: 'danger', message: 'Token creation failed.' });
     }
     return c.redirect('/tokens');
   });
@@ -631,15 +631,15 @@ export function pagesRoutes(deps: PageDeps): Hono {
     const tokens = await deps.personalTokens.listForUser(user.id);
     const activeTokens = tokens.filter((t) => !t.revoked_at && (!t.expires_at || Date.parse(t.expires_at) > Date.now()));
     if (!tokens.some((t) => t.id === tokenId)) {
-      setFlash(c, { type: 'danger', message: 'Token nicht gefunden.' });
+      setFlash(c, { type: 'danger', message: 'Token not found.' });
       return c.redirect('/tokens');
     }
     if (activeTokens.length <= 1) {
-      setFlash(c, { type: 'danger', message: 'Der letzte aktive Token kann nicht widerrufen werden.' });
+      setFlash(c, { type: 'danger', message: 'The last active token cannot be revoked.' });
       return c.redirect('/tokens');
     }
     await deps.personalTokens.revoke(tokenId);
-    setFlash(c, { type: 'success', message: 'Token widerrufen.' });
+    setFlash(c, { type: 'success', message: 'Token revoked.' });
     return c.redirect('/tokens');
   });
 
@@ -711,12 +711,12 @@ export function pagesRoutes(deps: PageDeps): Hono {
     const credentialId = decodeURIComponent(c.req.param('credentialId'));
     const existing = await deps.passkeys.listForUser(user.id);
     if (existing.length <= 1) {
-      setFlash(c, { type: 'danger', message: 'Der letzte Passkey kann nicht entfernt werden.' });
+      setFlash(c, { type: 'danger', message: 'The last passkey cannot be removed.' });
       return c.redirect('/passkeys');
     }
     // Only allow deleting own passkeys.
     if (!existing.some((p) => p.credential_id === credentialId)) {
-      setFlash(c, { type: 'danger', message: 'Passkey nicht gefunden.' });
+      setFlash(c, { type: 'danger', message: 'Passkey not found.' });
       return c.redirect('/passkeys');
     }
     await deps.passkeys.deleteByCredentialId(credentialId);
@@ -751,7 +751,7 @@ export function pagesRoutes(deps: PageDeps): Hono {
     if (!checkCsrf(c, form)) return c.text('CSRF mismatch', 403);
     const clientId = decodeURIComponent(c.req.param('id'));
     await deps.oauth.revokeClientForUser(clientId, user.id);
-    setFlash(c, { type: 'success', message: 'Client-Zugriff widerrufen.' });
+    setFlash(c, { type: 'success', message: 'Client access revoked.' });
     return c.redirect('/oauth/clients');
   });
 

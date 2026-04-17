@@ -44,9 +44,28 @@ docker compose up -d
 open http://localhost:8787
 ```
 
-On first boot plexus seeds the kinds and relations registries and the default admin user. Use the admin token from your `.env` to issue a personal token, then enroll a passkey at `/auth/login`.
-
 Full configuration reference is in [`.env.example`](./.env.example). Deployment notes for Coolify, plain Docker, and Kubernetes are below.
+
+---
+
+## First run — the bootstrap flow
+
+plexus boots on an empty database with no user. The `PLEXUS_ADMIN_TOKEN` from your `.env` is used **once** to create the first admin account, then steps aside.
+
+1. Open the dashboard (`http://localhost:8787` by default). plexus notices there is no user yet and redirects to `/bootstrap`.
+2. Enter an admin name (letters, digits, `_`, `-`, `.`). Submit. The admin token is matched via the login-cookie path — you never paste it into the browser.
+3. plexus creates the admin user and shows a personal token (`pt_…`) **exactly once**. Copy it into a password manager right now.
+4. Click **Continue to login**. You land on `/auth/login`.
+5. Paste the `pt_` token. plexus sees you have no passkey yet and shows the enrollment screen.
+6. Click **Register passkey now** — confirm with Touch ID / Face ID / Windows Hello / YubiKey.
+7. plexus **automatically rotates the token** and shows the new one. The initial token is now dead. Overwrite your password-manager entry with the new token.
+8. Click **Sign in with new token**. Paste the new token, tap the passkey again — you land on `/home`.
+
+After this one-time setup, `PLEXUS_ADMIN_TOKEN` is only used for admin-plane endpoints (backup, reset). It is **rejected on MCP** and on dashboard login.
+
+**Why the rotation?** The initial token is a one-shot invitation code. If anything intercepted it during handoff — mail, chat, a screen share — rotation makes that capture worthless the moment you sign in. For additional users you create later via `/users`, the same admin→user handoff + first-enroll rotation protects them the same way.
+
+After the bootstrap, the `/help` page inside the dashboard covers everything else: MCP integration, token scoping, passkey management, share links, graph view.
 
 ---
 

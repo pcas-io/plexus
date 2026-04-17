@@ -1,10 +1,10 @@
 /**
  * Share management page — /shares.
  *
- * Three tabs as per the Kickoff-ADR:
- *   - Aktive Links:     currently redeemable, with countdown + revoke
- *   - Verbraucht:       consumed, with IP/UA audit trail
- *   - Inaktiv:          expired or revoked without ever being consumed
+ * Three tabs:
+ *   - Active:    currently redeemable, with countdown + revoke
+ *   - Consumed:  consumed, with IP/UA audit trail
+ *   - Inactive:  expired or revoked without ever being consumed
  *
  * Dashboard-only; this view is the control surface for an explicit
  * human action and therefore carries write controls (revoke), which
@@ -60,7 +60,7 @@ export function renderSharesList(opts: SharesListOptions): string {
   const { currentUser, active, consumed, inactive, entityMap, csrfToken } = opts;
 
   const activeRows = active.length === 0
-    ? '<tr><td colspan="5" class="empty">Keine aktiven Share-Links.</td></tr>'
+    ? '<tr><td colspan="5" class="empty">No active share links.</td></tr>'
     : active
         .map((s) => `
           <tr>
@@ -71,14 +71,14 @@ export function renderSharesList(opts: SharesListOptions): string {
             <td>
               <form method="POST" action="/shares/${encodeURIComponent(s.id)}/revoke" style="display:inline">
                 <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-                <button type="submit" class="btn btn-small btn-ghost" onclick="return confirm('Share-Link sofort entziehen?')">revoke</button>
+                <button type="submit" class="btn btn-small btn-ghost" onclick="return confirm('Revoke this share link immediately?')">revoke</button>
               </form>
             </td>
           </tr>`)
         .join('');
 
   const consumedRows = consumed.length === 0
-    ? '<tr><td colspan="5" class="empty">Noch keine verbrauchten Links.</td></tr>'
+    ? '<tr><td colspan="5" class="empty">No consumed links yet.</td></tr>'
     : consumed
         .map((s) => `
           <tr>
@@ -91,12 +91,12 @@ export function renderSharesList(opts: SharesListOptions): string {
         .join('');
 
   const inactiveRows = inactive.length === 0
-    ? '<tr><td colspan="4" class="empty">Keine abgelaufenen oder entzogenen Links.</td></tr>'
+    ? '<tr><td colspan="4" class="empty">No expired or revoked links.</td></tr>'
     : inactive
         .map((s) => {
           const reason = s.revoked_at
-            ? `entzogen ${escapeHtml(formatDate(s.revoked_at))}`
-            : `abgelaufen ${escapeHtml(formatDate(s.expires_at))}`;
+            ? `revoked ${escapeHtml(formatDate(s.revoked_at))}`
+            : `expired ${escapeHtml(formatDate(s.expires_at))}`;
           return `
             <tr>
               <td>${entityCell(entityMap.get(s.entity), s.entity)}</td>
@@ -108,36 +108,36 @@ export function renderSharesList(opts: SharesListOptions): string {
         .join('');
 
   const body = html`
-    <h1>Share-Links</h1>
-    <p class="subtitle">One-time Read-Only-Links fuer einzelne Entities. Erstellung nur via Entity-Detail mit Step-Up-Passkey.</p>
+    <h1>Share links</h1>
+    <p class="subtitle">One-time read-only links for individual entities. Creation only via an entity detail page with a step-up passkey.</p>
 
-    <h2>Aktive Links</h2>
+    <h2>Active</h2>
     <div class="table-wrapper">
       <table>
-        <thead><tr><th>Entity</th><th>Erstellt</th><th>Ablauf</th><th>Ersteller</th><th>Aktion</th></tr></thead>
+        <thead><tr><th>Entity</th><th>Created</th><th>Expires</th><th>Creator</th><th>Action</th></tr></thead>
         <tbody>${raw(activeRows)}</tbody>
       </table>
     </div>
 
-    <h2 style="margin-top:1.54rem">Verbraucht</h2>
+    <h2 style="margin-top:1.54rem">Consumed</h2>
     <div class="table-wrapper">
       <table>
-        <thead><tr><th>Entity</th><th>Erstellt</th><th>Verbraucht</th><th>IP</th><th>User-Agent</th></tr></thead>
+        <thead><tr><th>Entity</th><th>Created</th><th>Consumed</th><th>IP</th><th>User-Agent</th></tr></thead>
         <tbody>${raw(consumedRows)}</tbody>
       </table>
     </div>
 
-    <h2 style="margin-top:1.54rem">Abgelaufen / entzogen</h2>
+    <h2 style="margin-top:1.54rem">Expired / revoked</h2>
     <div class="table-wrapper">
       <table>
-        <thead><tr><th>Entity</th><th>Erstellt</th><th>Status</th><th>Ersteller</th></tr></thead>
+        <thead><tr><th>Entity</th><th>Created</th><th>Status</th><th>Creator</th></tr></thead>
         <tbody>${raw(inactiveRows)}</tbody>
       </table>
     </div>
   `;
 
   return layout({
-    title: 'Share-Links',
+    title: 'Share links',
     body,
     currentUser,
     activePath: '/shares',

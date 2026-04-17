@@ -60,9 +60,9 @@ describe('renderAuditPage', () => {
     expect(html).toContain('<span class="badge badge-danger">failure</span>');
   });
 
-  test('empty result set renders the "keine Eintraege" placeholder row', () => {
+  test('empty result set renders the "no entries" placeholder row', () => {
     const html = render([]);
-    expect(html).toContain('Keine Eintraege');
+    expect(html).toContain('No entries match this filter');
   });
 
   test('metadata preview surfaces first few keys as key=value pairs', () => {

@@ -86,30 +86,30 @@ async function doPasskeyAuth() {
 
 export function renderLoginPage(opts: LoginPageOptions): string {
   const { csrfToken, errorMessage, mode = 'initial', hint } = opts;
-  const title = mode === 'enroll' ? 'Passkey registrieren' : mode === 'passkey' ? 'Passkey bestaetigen' : 'Anmelden';
+  const title = mode === 'enroll' ? 'Register passkey' : mode === 'passkey' ? 'Confirm with passkey' : 'Sign in';
 
   let inner = '';
   if (mode === 'initial') {
     inner = `
       <form method="POST" action="/auth/login">
         <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-        <label>Personal Token oder Admin Token</label>
-        <input type="password" name="token" required autocomplete="off" autofocus spellcheck="false" placeholder="pt_... oder admin token">
+        <label>Personal token or admin token</label>
+        <input type="password" name="token" required autocomplete="off" autofocus spellcheck="false" placeholder="pt_... or admin token">
         <button type="submit">Continue</button>
       </form>`;
   } else if (mode === 'passkey') {
     inner = `
-      <div class="info">Bitte jetzt Passkey tippen.</div>
-      <button type="button" id="passkey-auth">Mit Passkey anmelden</button>
+      <div class="info">Tap your passkey now to finish signing in.</div>
+      <button type="button" id="passkey-auth">Sign in with passkey</button>
       <div id="auth-error" class="error" style="display:none"></div>
       <form method="POST" action="/auth/logout" style="margin-top:12px">
         <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-        <button type="submit" class="btn-ghost">Abbrechen</button>
+        <button type="submit" class="btn-ghost">Cancel</button>
       </form>`;
   } else {
     inner = `
-      <div class="info">Vor dem ersten Login wird ein Passkey registriert. Der Passkey bleibt an dieses Geraet gebunden (Touch-ID, Face-ID, Windows Hello, YubiKey).</div>
-      <button type="button" id="passkey-enroll">Passkey jetzt registrieren</button>
+      <div class="info">Register a passkey before your first sign-in. The passkey is bound to this device (Touch&nbsp;ID, Face&nbsp;ID, Windows&nbsp;Hello, YubiKey, …).</div>
+      <button type="button" id="passkey-enroll">Register passkey now</button>
       <div id="enroll-error" class="error" style="display:none"></div>`;
   }
 
@@ -131,7 +131,7 @@ if (enrollBtn) {
     err.style.display = 'none';
     try {
       enrollBtn.disabled = true;
-      enrollBtn.textContent = 'Warte auf Passkey...';
+      enrollBtn.textContent = 'Waiting for passkey...';
       var res = await doEnrollPasskey();
       if (res.newToken) {
         // Token was rotated on first enrollment — show the new one
@@ -140,16 +140,16 @@ if (enrollBtn) {
         while (box.firstChild) box.removeChild(box.firstChild);
         var h = document.createElement('h1'); h.textContent = 'plexus'; box.appendChild(h);
         var hint = document.createElement('div'); hint.className = 'login-hint';
-        hint.textContent = 'Passkey registriert. Dein neuer Token:'; box.appendChild(hint);
+        hint.textContent = 'Passkey registered. Your new token:'; box.appendChild(hint);
         var info = document.createElement('div'); info.className = 'info';
-        info.textContent = 'Der initiale Token wurde entwertet. Speichere diesen neuen Token jetzt — er wird nie wieder angezeigt.';
+        info.textContent = 'The initial token is now revoked. Save this new token now — it will never be shown again.';
         box.appendChild(info);
         var tokenBox = document.createElement('div');
         tokenBox.style.cssText = 'background:var(--color-surface);border:1px dashed var(--color-mid);border-radius:0.46rem;padding:0.92rem;font-family:var(--font-mono);font-size:0.92rem;word-break:break-all;color:var(--color-ink);margin:0.62rem 0;user-select:all';
         tokenBox.textContent = res.newToken;
         box.appendChild(tokenBox);
         var cont = document.createElement('button');
-        cont.textContent = 'Mit neuem Token einloggen';
+        cont.textContent = 'Sign in with new token';
         cont.addEventListener('click', function() { window.location.href = '/auth/login'; });
         box.appendChild(cont);
       } else {
@@ -157,10 +157,10 @@ if (enrollBtn) {
         else window.location.reload();
       }
     } catch (e) {
-      err.textContent = e.message || 'Fehler bei der Registrierung';
+      err.textContent = e.message || 'Registration failed';
       err.style.display = 'block';
       enrollBtn.disabled = false;
-      enrollBtn.textContent = 'Erneut versuchen';
+      enrollBtn.textContent = 'Try again';
     }
   });
 }
@@ -171,15 +171,15 @@ if (authBtn) {
     err.style.display = 'none';
     try {
       authBtn.disabled = true;
-      authBtn.textContent = 'Warte auf Passkey...';
+      authBtn.textContent = 'Waiting for passkey...';
       var res = await doPasskeyAuth();
       if (res.redirect) window.location.href = res.redirect;
       else window.location.reload();
     } catch (e) {
-      err.textContent = e.message || 'Fehler bei der Authentifizierung';
+      err.textContent = e.message || 'Authentication failed';
       err.style.display = 'block';
       authBtn.disabled = false;
-      authBtn.textContent = 'Erneut versuchen';
+      authBtn.textContent = 'Try again';
     }
   };
   authBtn.addEventListener('click', tryAuth);

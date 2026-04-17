@@ -41,7 +41,7 @@ function bytesToB64url(bytes) {
 async function addPasskey() {
   var status = document.getElementById('enroll-status');
   var csrf = (document.cookie.split('; ').find(function(c){return c.indexOf('plexus_csrf=')===0;}) || '').split('=')[1] || '';
-  status.textContent = 'Challenge wird geladen...';
+  status.textContent = 'Loading challenge...';
   status.style.display = 'block';
   status.className = 'info';
   try {
@@ -57,9 +57,9 @@ async function addPasskey() {
       user: Object.assign({}, opts.user, { id: b64urlToBytes(opts.user.id) }),
       excludeCredentials: (opts.excludeCredentials || []).map(function(c){return Object.assign({}, c, {id: b64urlToBytes(c.id)});}),
     });
-    status.textContent = 'Bitte Passkey bestaetigen...';
+    status.textContent = 'Confirm with your passkey...';
     var cred = await navigator.credentials.create({ publicKey: publicKey });
-    if (!cred) throw new Error('Abgebrochen');
+    if (!cred) throw new Error('Cancelled');
     var response = {
       id: cred.id,
       rawId: bytesToB64url(cred.rawId),
@@ -80,7 +80,7 @@ async function addPasskey() {
     if (!r2.ok) { var e2 = await r2.json(); throw new Error(e2.message || e2.error || r2.status); }
     window.location.reload();
   } catch (err) {
-    status.textContent = 'Fehler: ' + (err.message || err);
+    status.textContent = 'Error: ' + (err.message || err);
     status.className = 'error';
   }
 }
@@ -92,7 +92,7 @@ export function renderPasskeysPage(opts: PasskeysPageOptions): string {
   const canDelete = passkeys.length > 1;
 
   const rows = passkeys.length === 0
-    ? '<tr><td colspan="4" class="empty">Keine Passkeys registriert.</td></tr>'
+    ? '<tr><td colspan="4" class="empty">No passkeys registered.</td></tr>'
     : passkeys.map((p) => {
         const ua = p.device_name ?? '—';
         const shortUa = ua.length > 50 ? ua.slice(0, 50) + '...' : ua;
@@ -101,21 +101,21 @@ export function renderPasskeysPage(opts: PasskeysPageOptions): string {
             <td class="mono" style="font-size:0.77rem">${escapeHtml(p.credential_id.slice(0, 16))}...</td>
             <td style="font-size:0.85rem" title="${escapeHtml(ua)}">${escapeHtml(shortUa)}</td>
             <td class="mono" style="font-size:0.77rem">${formatDate(p.created_at)}</td>
-            <td class="mono" style="font-size:0.77rem">${p.last_used_at ? formatDate(p.last_used_at) : '<span class="subtle">nie</span>'}</td>
+            <td class="mono" style="font-size:0.77rem">${p.last_used_at ? formatDate(p.last_used_at) : '<span class="subtle">never</span>'}</td>
             <td>
               ${canDelete
                 ? `<form method="POST" action="/passkeys/${encodeURIComponent(p.credential_id)}/delete" style="display:inline">
                     <input type="hidden" name="_csrf" value="${escapeHtml(csrfToken)}">
-                    <button type="submit" class="btn btn-small btn-ghost" onclick="return confirm('Passkey entfernen?')">Entfernen</button>
+                    <button type="submit" class="btn btn-small btn-ghost" onclick="return confirm('Remove passkey?')">Remove</button>
                   </form>`
-                : '<span class="subtle" style="font-size:0.77rem">letzter</span>'}
+                : '<span class="subtle" style="font-size:0.77rem">last one</span>'}
             </td>
           </tr>`;
       }).join('');
 
   const body = html`
     <h1>Passkeys</h1>
-    <p class="subtitle">Verwalte deine registrierten Passkeys. Mindestens einer muss aktiv bleiben, maximal ${MAX_PASSKEYS}.</p>
+    <p class="subtitle">Manage your registered passkeys. At least one must remain active, up to ${MAX_PASSKEYS}.</p>
 
     ${raw(renderFlash(flash))}
 
@@ -123,11 +123,11 @@ export function renderPasskeysPage(opts: PasskeysPageOptions): string {
       <table>
         <thead>
           <tr>
-            <th>Credential-ID</th>
-            <th>Geraet</th>
-            <th>Erstellt</th>
-            <th>Zuletzt benutzt</th>
-            <th>Aktion</th>
+            <th>Credential&nbsp;ID</th>
+            <th>Device</th>
+            <th>Created</th>
+            <th>Last used</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>${raw(rows)}</tbody>
@@ -136,14 +136,14 @@ export function renderPasskeysPage(opts: PasskeysPageOptions): string {
 
     ${raw(canAdd
       ? `<div class="card" style="margin-top:1.23rem">
-          <h3>Passkey hinzufuegen</h3>
-          <p class="subtle" style="font-size:0.85rem;margin-bottom:0.62rem">Registriere einen zusaetzlichen Passkey als Backup (z.B. anderes Geraet, YubiKey). Max ${MAX_PASSKEYS} pro Account.</p>
-          <button type="button" class="btn" onclick="addPasskey()">Neuen Passkey registrieren</button>
+          <h3>Add passkey</h3>
+          <p class="subtle" style="font-size:0.85rem;margin-bottom:0.62rem">Register an additional passkey as a backup (different device, YubiKey, …). Max ${MAX_PASSKEYS} per account.</p>
+          <button type="button" class="btn" onclick="addPasskey()">Register new passkey</button>
           <div id="enroll-status" style="margin-top:0.62rem;display:none"></div>
         </div>
         <script>${ENROLL_SCRIPT}</script>`
       : `<div class="card" style="margin-top:1.23rem">
-          <p class="subtle">Maximum von ${MAX_PASSKEYS} Passkeys erreicht. Entferne einen bestehenden um einen neuen zu registrieren.</p>
+          <p class="subtle">Maximum of ${MAX_PASSKEYS} passkeys reached. Remove one to register a new one.</p>
         </div>`)}
   `;
 

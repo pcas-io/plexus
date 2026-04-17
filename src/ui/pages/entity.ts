@@ -47,10 +47,10 @@ export function renderEntityDetail(opts: EntityDetailOptions): string {
 
   const attrsPre = Object.keys(entity.attributes).length > 0
     ? `<pre style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:0.46rem;padding:12px;font-size:0.77rem;overflow-x:auto;max-width:100%;word-wrap:break-word">${escapeHtml(JSON.stringify(entity.attributes, null, 2))}</pre>`
-    : '<p class="subtle">Keine Attributes.</p>';
+    : '<p class="subtle">No attributes.</p>';
 
   const connectionsList = edges.length === 0
-    ? '<p class="subtle">Noch keine Verbindungen.</p>'
+    ? '<p class="subtle">No connections yet.</p>'
     : edges
         .map(({ edge, otherEntity, direction }) => {
           const arrow = direction === 'out' ? '→' : '←';
@@ -115,16 +115,16 @@ export function renderEntityDetail(opts: EntityDetailOptions): string {
     statusEl.style.display = 'none';
     resultEl.style.display = 'block';
     resultEl.className = 'alert alert-danger';
-    resultEl.textContent = 'Fehler: ' + msg;
+    resultEl.textContent = 'Error: ' + msg;
   }
-  // Copy helper with visual "Kopiert!" feedback. Uses the Clipboard API
+  // Copy helper with visual "Copied!" feedback. Uses the Clipboard API
   // (requires a secure context — we are on HTTPS in production). Falls back
   // to text-selection for older browsers so the user can Cmd/Ctrl+C manually.
   function copyToClipboard(text, btn) {
     function flash() {
       var original = btn.getAttribute('data-original-label') || btn.textContent;
       btn.setAttribute('data-original-label', original);
-      btn.textContent = 'Kopiert';
+      btn.textContent = 'Copied';
       btn.classList.add('copied');
       setTimeout(function() {
         btn.textContent = original;
@@ -142,7 +142,7 @@ export function renderEntityDetail(opts: EntityDetailOptions): string {
           sel.removeAllRanges();
           sel.addRange(range);
         }
-        btn.textContent = 'Markiert — Cmd+C';
+        btn.textContent = 'Selected — Cmd+C';
       });
     } else {
       var urlEl2 = btn.parentNode.querySelector('.share-link-url');
@@ -183,7 +183,7 @@ export function renderEntityDetail(opts: EntityDetailOptions): string {
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'share-copy-btn';
-    btn.textContent = 'Kopieren';
+    btn.textContent = 'Copy';
     btn.addEventListener('click', function() {
       copyToClipboard(url, btn);
     });
@@ -201,13 +201,13 @@ export function renderEntityDetail(opts: EntityDetailOptions): string {
     while (resultEl.firstChild) resultEl.removeChild(resultEl.firstChild);
 
     var strong = document.createElement('strong');
-    strong.textContent = 'Share-Link erstellt';
+    strong.textContent = 'Share link created';
     resultEl.appendChild(strong);
 
     var note = document.createElement('p');
     note.className = 'muted';
     note.style.margin = '8px 0 12px';
-    note.textContent = 'Nur einmal verwendbar. Drei Varianten fuer Mensch, LLM und CLI — alle teilen denselben Token, nur das Format unterscheidet sich.';
+    note.textContent = 'One-time use. Three variants for humans, LLMs, and CLI — all share the same token, only the format differs.';
     resultEl.appendChild(note);
 
     // Build the three URL variants by appending the query params documented
@@ -216,15 +216,15 @@ export function renderEntityDetail(opts: EntityDetailOptions): string {
     var urlMd = url + (url.indexOf('?') === -1 ? '?' : '&') + 'raw';
     var urlJson = url + (url.indexOf('?') === -1 ? '?' : '&') + 'raw=json';
 
-    resultEl.appendChild(buildLinkRow('HTML', 'Browser, Dashboard-Layout', url));
-    resultEl.appendChild(buildLinkRow('Markdown', 'LLM / Terminal (glow)', urlMd));
-    resultEl.appendChild(buildLinkRow('JSON', 'CLI / jq / Pipes', urlJson));
+    resultEl.appendChild(buildLinkRow('HTML', 'Browser, dashboard layout', url));
+    resultEl.appendChild(buildLinkRow('Markdown', 'LLM / terminal (glow)', urlMd));
+    resultEl.appendChild(buildLinkRow('JSON', 'CLI / jq / pipes', urlJson));
 
     var meta = document.createElement('p');
     meta.className = 'subtle';
     meta.style.fontSize = '0.77rem';
     meta.style.marginTop = '0.77rem';
-    meta.textContent = 'Ablauf: ' + expiresAt;
+    meta.textContent = 'Expires: ' + expiresAt;
     resultEl.appendChild(meta);
   }
 
@@ -244,7 +244,7 @@ export function renderEntityDetail(opts: EntityDetailOptions): string {
         return;
       }
       var startData = await startRes.json();
-      showStatus('Bitte Passkey bestaetigen...');
+      showStatus('Confirm with your passkey...');
       var publicKey = startData.options;
       publicKey.challenge = b64urlToBytes(publicKey.challenge);
       if (publicKey.allowCredentials) {
@@ -311,13 +311,13 @@ export function renderEntityDetail(opts: EntityDetailOptions): string {
         <div class="card" style="overflow-wrap:anywhere;max-width:100%">${raw(attrsPre)}</div>
       </div>
       <div>
-        <h2>Teilen</h2>
+        <h2>Share</h2>
         <div class="card">
-          <p class="subtle" style="font-size:0.85rem;margin-bottom:0.62rem">Erstellt einen einmaligen Read-Only-Link. Step-Up-Passkey erforderlich.</p>
+          <p class="subtle" style="font-size:0.85rem;margin-bottom:0.62rem">Creates a one-time read-only link. Step-up passkey required.</p>
           ${raw(shareButton)}
         </div>
 
-        <h2>Verbindungen (${edges.length})</h2>
+        <h2>Connections (${edges.length})</h2>
         <div class="card">${raw(connectionsList)}</div>
       </div>
     </div>
