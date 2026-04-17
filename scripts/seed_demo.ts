@@ -212,14 +212,19 @@ function textContent(result: unknown): string {
 
 function extractId(result: unknown): string {
   const text = textContent(result);
-  const parsed = JSON.parse(text) as { id?: string; error?: unknown };
+  const parsed = JSON.parse(text) as {
+    id?: string;
+    entity?: { id?: string };
+    error?: unknown;
+  };
   if (parsed.error) {
     throw new Error(`plexus returned error: ${JSON.stringify(parsed.error)}`);
   }
-  if (!parsed.id) {
+  const id = parsed.entity?.id ?? parsed.id;
+  if (!id) {
     throw new Error(`plexus response missing id: ${text}`);
   }
-  return parsed.id;
+  return id;
 }
 
 async function main(): Promise<void> {
