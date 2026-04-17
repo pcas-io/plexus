@@ -51,20 +51,32 @@ export class SessionRepository {
   ): Promise<CreatedSession> {
     const token = generateSessionToken();
     const tokenHash = hashToken(token);
+    // SurrealDB v2 rejects an explicit NULL on an `option<T>` field in
+    // a CREATE ... CONTENT {...} payload — it only accepts the field
+    // being absent or set to a concrete value. Build the CONTENT object
+    // dynamically so we don't set ip/user_agent when they are missing
+    // (common on local-loopback deployments with no reverse proxy).
+    const fields: string[] = [
+      `user: type::thing('users', $uid_raw)`,
+      `session_token_hash: $hash`,
+      `expires_at: time::now() + ${SESSION_TTL_HOURS}h`,
+    ];
+    const params: Record<string, unknown> = {
+      uid_raw: rawIdPart(userId, 'users'),
+      hash: tokenHash,
+    };
+    if (meta.ip != null && meta.ip !== '') {
+      fields.push('ip: $ip');
+      params.ip = meta.ip;
+    }
+    if (meta.userAgent != null && meta.userAgent !== '') {
+      fields.push('user_agent: $ua');
+      params.ua = meta.userAgent;
+    }
     const result = await this.db.query<[unknown[]]>(
-      `CREATE user_sessions CONTENT {
-         user: type::thing('users', $uid_raw),
-         session_token_hash: $hash,
-         ip: $ip,
-         user_agent: $ua,
-         expires_at: time::now() + ${SESSION_TTL_HOURS}h
-       } RETURN id, user, ip, user_agent, created_at, expires_at, last_active_at, revoked_at;`,
-      {
-        uid_raw: rawIdPart(userId, 'users'),
-        hash: tokenHash,
-        ip: meta.ip ?? null,
-        ua: meta.userAgent ?? null,
-      }
+      `CREATE user_sessions CONTENT { ${fields.join(', ')} }
+       RETURN id, user, ip, user_agent, created_at, expires_at, last_active_at, revoked_at;`,
+      params
     );
     const row = result[0]?.[0];
     if (!row) throw new Error('Failed to create session');
