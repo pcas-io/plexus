@@ -1,0 +1,30 @@
+{
+    # Email for Let's Encrypt notifications — set via env or hardcode in fork
+    # email admin@example.com
+    auto_https disable_redirects
+}
+
+{$PLEXUS_DOMAIN:plexus.localhost} {
+    # Security headers (from Auth & Security Hardening ADR)
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        -Server
+    }
+
+    # Gzip compression
+    encode gzip zstd
+
+    # Reverse proxy to plexus worker
+    reverse_proxy plexus:8787 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Rate limiting is handled inside plexus (per-token + per-IP)
+    # Fail2ban / CrowdSec can be layered here as second line of defense
+}

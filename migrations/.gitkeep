@@ -1,0 +1,3 @@
+# SurrealQL migrations will live here.
+# Naming pattern: NNNN_description.surql (e.g. 0001_init.surql, 0002_share_tokens.surql)
+# Migrations are applied by the worker on startup in numeric order.

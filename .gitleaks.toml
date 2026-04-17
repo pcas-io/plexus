@@ -1,0 +1,7 @@
+# Gitleaks configuration — allowlist false positives
+
+[allowlist]
+  description = "plexus false positives"
+  # Help page contains curl examples with placeholder tokens (not real secrets)
+  paths = ['''src/ui/pages/help\.ts''']
+  commits = ["5127808eeac405dbf97cc5f4db2d12a2cb5a1490"]
