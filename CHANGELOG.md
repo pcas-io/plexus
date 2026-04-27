@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-04-27
+
+First sync from the private prod fork (`enki-run/plexus`) per the
+OSS-first workflow. Three changes that lived on prod for ~10 days
+land back in OSS so the public surface stays the source of truth.
+
+### Added
+
+- **Self-describing registries** (`feat/self-describing-registries`,
+  #1). Migration `0008_self_describing_registries.surql` populates
+  `attributes_schema` per kind, `allowed_from_kinds` /
+  `allowed_to_kinds` per relation, plus new `required_edge_groups`
+  and `recommended_attributes` columns on `entity_kinds`. The
+  registries now travel through `list_kinds` / `list_relations` /
+  `context_load` so non-Claude LLM clients (Mistral Le Chat
+  tested) can satisfy plexus conventions without reading a
+  CLAUDE.md.
+- `save_entity` enforces the registry contract: required
+  attributes (with type/enum checks) and `required_edge_groups`
+  (e.g. `decision` needs at least one
+  `derived_from`/`triggered_by`/`supersedes`/`part_of` edge).
+  New `related[]` parameter for atomic save+link satisfying edge
+  groups in a single call (rolls back the entity if linking fails).
+- `list_entities` and `search_entities` gain `attributes{}`
+  (exact-match filter, AND'd), `has_relation{}` (filter by active
+  edge — relation, target_id, direction), and `include_eval`
+  (defaults `false` to hide self-eval snapshots).
+
+### Fixed
+
+- **`required_edge_groups` quirk on schemaful writes**
+  (`fix/required-edge-groups-schemaful`, #2). Migration
+  `0009_fix_required_edge_groups_value.surql`. After 0008 first
+  shipped, `decision.required_edge_groups` came back as `[]`
+  despite the migration setting `[{decision_context, …}]`. Two
+  SurrealDB v2 quirks combined: `VALUE $value OR []` collapsed
+  non-empty arrays, and `TYPE option<array<object>>` on a
+  `SCHEMAFULL` table stripped keys from each array element. 0009
+  re-defines both fields without `VALUE` and marks the
+  array-of-object field `FLEXIBLE`. New integration test catches
+  both quirks if either ever regresses.
+- **`cleanupOrphanedClients` deleted active clients on restart**
+  (`fix/oauth-cleanup-active-clients`, #3). The `id NOT IN
+  (SELECT VALUE client …)` query is unreliable on SurrealDB v2
+  for Thing-typed record references — older OAuth clients were
+  classified as orphans and deleted on every startup. The query
+  also never checked `oauth_refresh_tokens`, so a client whose
+  access tokens had expired but whose refresh token was still
+  valid would also be wiped. Fix: two-step lookup (candidates +
+  every client referenced by access OR refresh tokens), set
+  difference in JS. Five integration tests cover orphan deletion,
+  active-refresh survival, revoked/expired retention, young-client
+  grandfathering, mixed multi-client scenarios.
+
+### Changed
+
+- `package.json` and `server.json` bumped to `0.1.2`. MCP Registry
+  entry `io.github.pcas-io/plexus` will be republished against the
+  same tag.
+
+### Tests
+
+252 passing (243 → 252 across the three PRs).
+
 ## [0.1.1] — 2026-04-17
 
 Post-release polish. Same day as 0.1.0, same public repo. Focus:

@@ -1,6 +1,6 @@
 {
   "name": "plexus",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "plexus (_graph) — on-prem, agent-first, typed knowledge graph. Read-only for humans, write-only for agents, via MCP.",
   "license": "Apache-2.0",
   "homepage": "https://pcas.io",
