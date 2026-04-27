@@ -55,6 +55,17 @@ export interface EntityPatch {
   readonly status?: string;
 }
 
+export interface HasRelationFilter {
+  /** Relation name (e.g. 'triggered_by', 'part_of'). Required. */
+  readonly relation: string;
+  /** Target entity id. If omitted, matches any target. */
+  readonly target_id?: string;
+  /** 'out': entity has an out-edge with this relation.
+   *  'in': entity has an in-edge with this relation.
+   *  'any' (default): either direction. */
+  readonly direction?: 'out' | 'in' | 'any';
+}
+
 export interface EntityFilter {
   readonly kind?: string;
   /** Kinds to hide from the result set. Useful for the dashboard
@@ -67,6 +78,17 @@ export interface EntityFilter {
   readonly status?: string;
   readonly limit?: number;
   readonly offset?: number;
+  /** Exact-match filter on top-level attribute values. `{ priority: 'high' }`
+   *  restricts to entities where attributes.priority === 'high'. Supports
+   *  string/number/boolean values. Multiple keys are AND'd. */
+  readonly attributes?: Record<string, string | number | boolean>;
+  /** Restrict to entities with a matching active edge. Active = valid_to
+   *  is NONE. The check is a subquery on edges; expect a small-cardinality
+   *  overhead on large result sets. */
+  readonly has_relation?: HasRelationFilter;
+  /** When true (default on search/list), entities with attributes.is_eval=true
+   *  are removed. Opt in via `include_eval=true` to see eval snapshots. */
+  readonly exclude_eval?: boolean;
 }
 
 export class VersionConflictError extends Error {
@@ -103,6 +125,95 @@ function normalizeEntity(raw: unknown): Entity {
 
 const RETURN_COLS =
   'id, kind, title, body, attributes, context, status, version, created_at, updated_at, created_by, updated_by';
+
+/**
+ * Build the shared WHERE fragment used by list() and search(). Handles
+ * kind/excludeKinds/context/status/attributes/has_relation/exclude_eval
+ * uniformly so the two call sites stay in lockstep.
+ *
+ * Attribute filters use SurrealDB's JSON path syntax: `attributes.priority
+ * = $attr_priority`. Each attribute gets its own bound parameter keyed as
+ * `attr_<field>` so the field itself — chosen by the MCP caller — is
+ * never interpolated as raw SQL.
+ *
+ * Relation filters use a subquery against the edges table. `valid_to IS
+ * NONE/NULL` narrows to the currently active edge; temporal invalidation
+ * (via unlink_entity) automatically removes the match.
+ */
+function buildEntityWhere(filter: EntityFilter): {
+  where: string[];
+  params: Record<string, unknown>;
+} {
+  const where: string[] = [];
+  const params: Record<string, unknown> = {};
+
+  if (filter.kind) {
+    where.push('kind = $kind');
+    params.kind = filter.kind;
+  } else if (filter.excludeKinds && filter.excludeKinds.length > 0) {
+    where.push('kind NOT IN $exclude_kinds');
+    params.exclude_kinds = [...filter.excludeKinds];
+  }
+  if (filter.context) {
+    where.push('context = $context');
+    params.context = filter.context;
+  }
+  if (filter.status) {
+    where.push('status = $status');
+    params.status = filter.status;
+  } else {
+    where.push("status != 'archived'");
+  }
+
+  if (filter.attributes) {
+    for (const [field, value] of Object.entries(filter.attributes)) {
+      // Allowlist the attribute field name to `[a-zA-Z0-9_]+` so it is
+      // safe to interpolate into the path expression. Unknown/rejected
+      // field names are silently skipped — a malformed filter must not
+      // widen the result set by bypassing checks elsewhere.
+      if (!/^[a-zA-Z0-9_]+$/.test(field)) continue;
+      const paramName = `attr_${field}`;
+      where.push(`attributes.${field} = $${paramName}`);
+      params[paramName] = value;
+    }
+  }
+
+  if (filter.has_relation) {
+    const { relation, target_id, direction } = filter.has_relation;
+    const dir = direction ?? 'any';
+    const edgeFilters: string[] = ['relation = $rel_name', IS_UNSET('valid_to')];
+    params.rel_name = relation;
+    if (target_id) {
+      edgeFilters.push(
+        dir === 'in'
+          ? 'from_entity = type::thing("entities", $rel_target)'
+          : dir === 'out'
+            ? 'to_entity = type::thing("entities", $rel_target)'
+            : '(from_entity = type::thing("entities", $rel_target) OR to_entity = type::thing("entities", $rel_target))'
+      );
+      params.rel_target = rawIdPart(target_id, 'entities');
+    }
+    const edgeWhere = edgeFilters.join(' AND ');
+    if (dir === 'in') {
+      where.push(`id IN (SELECT VALUE to_entity FROM edges WHERE ${edgeWhere})`);
+    } else if (dir === 'out') {
+      where.push(`id IN (SELECT VALUE from_entity FROM edges WHERE ${edgeWhere})`);
+    } else {
+      where.push(
+        `(id IN (SELECT VALUE from_entity FROM edges WHERE ${edgeWhere}) OR id IN (SELECT VALUE to_entity FROM edges WHERE ${edgeWhere}))`
+      );
+    }
+  }
+
+  if (filter.exclude_eval) {
+    // attributes.is_eval may be absent, null, or false — treat all three
+    // as "not an eval entity". Use coalescing via OR so eval=undefined
+    // entries pass through.
+    where.push('(attributes.is_eval IS NONE OR attributes.is_eval IS NULL OR attributes.is_eval = false)');
+  }
+
+  return { where, params };
+}
 
 export class EntityRepository {
   constructor(private readonly db: Surreal) {}
@@ -163,27 +274,7 @@ export class EntityRepository {
   }
 
   async list(filter: EntityFilter = {}): Promise<Entity[]> {
-    const where: string[] = [];
-    const params: Record<string, unknown> = {};
-    if (filter.kind) {
-      where.push('kind = $kind');
-      params.kind = filter.kind;
-    } else if (filter.excludeKinds && filter.excludeKinds.length > 0) {
-      // Only applied when no explicit kind was given — the user asked
-      // to hide certain kinds from the general browse view.
-      where.push('kind NOT IN $exclude_kinds');
-      params.exclude_kinds = [...filter.excludeKinds];
-    }
-    if (filter.context) {
-      where.push('context = $context');
-      params.context = filter.context;
-    }
-    if (filter.status) {
-      where.push('status = $status');
-      params.status = filter.status;
-    } else {
-      where.push("status != 'archived'");
-    }
+    const { where, params } = buildEntityWhere(filter);
     const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
     const limit = Math.min(Math.max(filter.limit ?? 50, 1), 500);
     const offset = Math.max(filter.offset ?? 0, 0);
@@ -456,11 +547,9 @@ export class EntityRepository {
     const q = query.trim();
     if (!q) return [];
 
-    const where: string[] = ['(title @0@ $q OR body @1@ $q)'];
-    const params: Record<string, unknown> = { q };
-    if (filter.kind) { where.push('kind = $kind'); params.kind = filter.kind; }
-    if (filter.context) { where.push('context = $context'); params.context = filter.context; }
-    where.push("status != 'archived'");
+    const { where, params } = buildEntityWhere(filter);
+    where.unshift('(title @0@ $q OR body @1@ $q)');
+    params.q = q;
 
     const limit = Math.min(Math.max(filter.limit ?? 20, 1), 100);
     // When highlighting is requested we swap the title column for the
