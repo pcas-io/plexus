@@ -23,6 +23,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
+import type { Entity } from '../db/repositories/entities.js';
 import { VersionConflictError } from '../db/repositories/entities.js';
 import { isAttributesWithinSize, MAX_ATTRIBUTE_JSON_BYTES } from '../db/util/clean.js';
 import {
@@ -30,6 +31,15 @@ import {
   isHandoffFact,
   validateHandoffCreation,
 } from '../db/util/handoff_validation.js';
+import {
+  AttributeValidationError,
+  validateAttributes,
+} from '../db/util/attribute_validation.js';
+import {
+  RequiredEdgeValidationError,
+  validateRequiredEdges,
+  type PlannedEdge,
+} from '../db/util/required_edge_validation.js';
 import { buildEntityPreview } from './entity_preview.js';
 import type { McpDeps, McpScope } from './server.js';
 import { registerSkillTools } from './skill_tools.js';
@@ -165,19 +175,26 @@ export function registerPlexusTools(server: McpServer, deps: McpDeps): void {
   // ---------- save_entity ----------
   server.tool(
     'save_entity',
-    'Create a new entity in the knowledge graph. Use this for new knowledge, decisions, facts, tasks, projects, and any other typed record. Handoff-facts (kind=fact, attributes.session_type=handoff) require the session_date/session_id/agent_id attributes and a part_of project id — pass it via the part_of parameter for atomic save+link.',
+    'Create a new entity in the knowledge graph. Use for new knowledge, decisions, facts, tasks, projects, and any other typed record. Handoff-facts (kind=fact, attributes.session_type=handoff) require the session_date/session_id/agent_id attributes and a part_of project id. Decisions require at least one context edge (derived_from/triggered_by/supersedes/part_of) — pass via part_of or the related[] parameter for atomic save+link. Call list_kinds to discover attribute schemas and required_edge_groups per kind.',
     {
-      kind: z.string().describe('Entity type (concept, decision, fact, project, task, document, note, …). Must exist in the kinds registry.'),
+      kind: z.string().describe('Entity type (concept, decision, fact, project, task, document, note, …). Must exist in the kinds registry; call list_kinds to enumerate.'),
       title: z.string().min(1).max(500),
       body: z.string().optional().describe('Long-form markdown body.'),
-      attributes: boundedAttributes().describe('Kind-specific structured attributes as JSON object (or JSON string).'),
+      attributes: boundedAttributes().describe('Kind-specific structured attributes. list_kinds returns the attributes_schema (required + recommended fields + enum constraints) for each kind.'),
       context: z.string().describe('Organisational context. Use list_entities or context_load to discover available contexts.'),
       part_of: z
         .string()
         .optional()
-        .describe('Entity id of an active project to link via a part_of edge. Required when attributes.session_type=handoff; optional convenience otherwise.'),
+        .describe('Entity id of an active project to link via a part_of edge. Required when attributes.session_type=handoff; often satisfies required_edge_groups on its own.'),
+      related: z
+        .array(z.object({
+          to_id: z.string().describe('Target entity id.'),
+          relation: z.string().describe('Relation name (derived_from, triggered_by, supersedes, documents, implements, …). Call list_relations to enumerate.'),
+        }))
+        .optional()
+        .describe('Additional edges to create atomically alongside the entity. Use to satisfy required_edge_groups for kinds like decision (needs derived_from/triggered_by/supersedes/part_of). On edge-link failure the newly created entity is rolled back.'),
     },
-    async ({ kind, title, body, attributes, context, part_of }) => {
+    async ({ kind, title, body, attributes, context, part_of, related }) => {
       try {
         requireWrite(scope);
         checkContext(scope, context);
@@ -188,13 +205,17 @@ export function registerPlexusTools(server: McpServer, deps: McpDeps): void {
           return errorResult(`unknown kind: ${kind}`, 'unknown_kind');
         }
 
+        // Attribute-schema validation (P1a). Runs before any DB write so
+        // the entity never lands when required attrs are missing.
+        const attrsRecord = (attributes ?? undefined) as
+          | Record<string, unknown>
+          | undefined;
+        validateAttributes(kind, attrsRecord, kindDef.attributes_schema);
+
         // Handoff-fact pre-flight: resolve part_of target so the
         // validator sees the real entity (kind + status), not just a
         // bare id. This runs before the DB insert so a broken handoff
         // never leaves a zombie entity behind.
-        const attrsRecord = (attributes ?? undefined) as
-          | Record<string, unknown>
-          | undefined;
         const handoff = isHandoffFact(kind, attrsRecord);
         let partOfTarget: Awaited<ReturnType<typeof entities.get>> = null;
         if (part_of) {
@@ -213,17 +234,51 @@ export function registerPlexusTools(server: McpServer, deps: McpDeps): void {
           });
         }
 
+        // Resolve the `related` targets up front so we can reject
+        // unknown ids before creating the entity. Each entry becomes
+        // an out-edge from the new entity. We also record the relations
+        // in the planned-edges list for required_edge_groups validation.
+        const relatedTargets: Array<{
+          toId: string;
+          relation: string;
+          target: Entity;
+        }> = [];
+        for (const rel of related ?? []) {
+          const target = await entities.get(rel.to_id);
+          if (!target) {
+            return errorResult(`related entity not found: ${rel.to_id}`, 'not_found');
+          }
+          checkContext(scope, target.context);
+          checkKind(scope, target.kind);
+          relatedTargets.push({ toId: target.id, relation: rel.relation, target });
+        }
+
+        const plannedEdges: PlannedEdge[] = [];
+        if (part_of) plannedEdges.push({ relation: 'part_of', direction: 'out' });
+        for (const rt of relatedTargets) {
+          plannedEdges.push({ relation: rt.relation, direction: 'out' });
+        }
+        validateRequiredEdges(kind, kindDef.required_edge_groups, plannedEdges);
+
         const created = await entities.save({ kind, title, body, attributes, context }, userId);
         await audit('save_entity', 'entity', created.id, { kind, context });
 
-        // If a part_of was supplied (mandatory for handoffs, optional
-        // otherwise), create the edge in the same call. On failure for a
-        // handoff, archive the just-created entity to avoid an invalid
-        // handoff-fact without its required part_of edge. When the
-        // rollback itself fails we surface `rollback_failed` with the
-        // orphan id so the caller can clean up — silently swallowing
-        // that case would leave an active handoff-fact without project
-        // edge and no way for the caller to know.
+        // Any edge failure below triggers entity rollback (archive) to
+        // avoid leaving a zombie without its required/requested
+        // relations. Applies both to handoff-facts (historical rule)
+        // and to required_edge_groups members (decision, …).
+        const rollback = async (reason: string): Promise<void> => {
+          try {
+            await entities.archive(created.id, userId);
+          } catch (archiveErr) {
+            console.error(`[plexus] rollback archive failed (${reason}):`, archiveErr);
+            throw archiveErr;
+          }
+        };
+
+        const needsRollbackOnEdgeFailure =
+          handoff || kindDef.required_edge_groups.length > 0;
+
         if (part_of && partOfTarget) {
           try {
             const edge = await edges.link(
@@ -234,29 +289,58 @@ export function registerPlexusTools(server: McpServer, deps: McpDeps): void {
               from_id: edge.from_entity,
               to_id: edge.to_entity,
               relation: edge.relation,
-              reason: 'handoff_or_part_of_convenience',
+              reason: 'save_entity_part_of',
             });
           } catch (linkErr) {
-            let rollbackOk = true;
-            if (handoff) {
-              try {
-                await entities.archive(created.id, userId);
-              } catch (archiveErr) {
-                rollbackOk = false;
-                console.error('[plexus] failed to rollback handoff entity:', archiveErr);
-              }
-            }
             const linkMsg = (linkErr as Error).message;
-            if (handoff && !rollbackOk) {
+            if (needsRollbackOnEdgeFailure) {
+              try {
+                await rollback('part_of link failure');
+              } catch {
+                return errorResult(
+                  `failed to link part_of edge: ${linkMsg} — and rollback archive also failed; orphan entity id: ${created.id}`,
+                  'rollback_failed'
+                );
+              }
               return errorResult(
-                `failed to link part_of edge: ${linkMsg} — and rollback archive also failed; orphan entity id: ${created.id}`,
-                'rollback_failed'
+                `failed to link part_of edge: ${linkMsg} — rolled back entity ${created.id}`,
+                'link_failed'
+              );
+            }
+            return errorResult(`failed to link part_of edge: ${linkMsg}`, 'link_failed');
+          }
+        }
+
+        for (const rt of relatedTargets) {
+          try {
+            const edge = await edges.link(
+              { fromId: created.id, toId: rt.toId, relation: rt.relation },
+              userId
+            );
+            await audit('link_entities', 'edge', edge.id, {
+              from_id: edge.from_entity,
+              to_id: edge.to_entity,
+              relation: edge.relation,
+              reason: 'save_entity_related',
+            });
+          } catch (linkErr) {
+            const linkMsg = (linkErr as Error).message;
+            if (needsRollbackOnEdgeFailure) {
+              try {
+                await rollback(`related[${rt.relation}] link failure`);
+              } catch {
+                return errorResult(
+                  `failed to link related edge (${rt.relation} → ${rt.toId}): ${linkMsg} — rollback archive also failed; orphan entity id: ${created.id}`,
+                  'rollback_failed'
+                );
+              }
+              return errorResult(
+                `failed to link related edge (${rt.relation} → ${rt.toId}): ${linkMsg} — rolled back entity ${created.id}`,
+                'link_failed'
               );
             }
             return errorResult(
-              handoff
-                ? `failed to link part_of edge: ${linkMsg} — rolled back entity ${created.id}`
-                : `failed to link part_of edge: ${linkMsg}`,
+              `failed to link related edge (${rt.relation} → ${rt.toId}): ${linkMsg}`,
               'link_failed'
             );
           }
@@ -269,6 +353,12 @@ export function registerPlexusTools(server: McpServer, deps: McpDeps): void {
       } catch (err) {
         if (err instanceof ScopeError) return errorResult(err.message, 'scope_denied');
         if (err instanceof HandoffValidationError) {
+          return errorResult(err.message, err.code);
+        }
+        if (err instanceof AttributeValidationError) {
+          return errorResult(err.message, err.code);
+        }
+        if (err instanceof RequiredEdgeValidationError) {
           return errorResult(err.message, err.code);
         }
         return errorResult((err as Error).message, 'save_failed');
@@ -301,19 +391,44 @@ export function registerPlexusTools(server: McpServer, deps: McpDeps): void {
   // ---------- list_entities ----------
   server.tool(
     'list_entities',
-    'List entities with optional filters. Defaults to all active entities in any context the token has access to.',
+    'List entities with optional filters. If context is omitted, lists across ALL contexts the token has access to — no per-context loop needed. Defaults to status=active and excludes eval snapshots (attributes.is_eval=true); pass include_eval=true to see them.',
     {
-      kind: z.string().optional(),
-      context: z.string().optional(),
-      status: z.string().optional(),
+      kind: z.string().optional().describe('Filter by entity kind (fact, task, decision, ...). Omit to include all kinds.'),
+      context: z.string().optional().describe('Filter by context namespace. Omit to search across all accessible contexts.'),
+      status: z.string().optional().describe('Filter by status (default: active). Pass "archived" to include soft-deleted entities.'),
       limit: z.coerce.number().int().min(1).max(500).optional(),
       offset: z.coerce.number().int().min(0).optional(),
+      attributes: z
+        .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+        .optional()
+        .describe('Exact-match filter on attribute values, AND\'d together. Example: {"priority":"high","is_milestone":true}. Field names must match [a-zA-Z0-9_]+.'),
+      has_relation: z
+        .object({
+          relation: z.string().describe('Relation name (part_of, triggered_by, ...). Call list_relations to enumerate.'),
+          target_id: z.string().optional().describe('Target entity id. Omit to match any target of this relation.'),
+          direction: z.enum(['out', 'in', 'any']).optional().describe('out (default any): entity has an out-edge of this relation.'),
+        })
+        .optional()
+        .describe('Restrict to entities that currently have an active edge matching this relation. Example: {"relation":"triggered_by","target_id":"entities:foo"} returns all entities triggered by foo.'),
+      include_eval: z
+        .boolean()
+        .optional()
+        .describe('Set true to include entities marked attributes.is_eval=true (graph self-evaluations, benchmark snapshots). Default false.'),
     },
-    async ({ kind, context, status, limit, offset }) => {
+    async ({ kind, context, status, limit, offset, attributes, has_relation, include_eval }) => {
       try {
         if (context) checkContext(scope, context);
         if (kind) checkKind(scope, kind);
-        let results = await entities.list({ kind, context, status, limit, offset });
+        let results = await entities.list({
+          kind,
+          context,
+          status,
+          limit,
+          offset,
+          attributes,
+          has_relation,
+          exclude_eval: include_eval !== true,
+        });
         // If the scope restricts contexts but no context filter was given,
         // post-filter to the allowed set.
         if (!context && scope.contexts && scope.contexts.length > 0) {
@@ -336,19 +451,42 @@ export function registerPlexusTools(server: McpServer, deps: McpDeps): void {
   // ---------- search_entities ----------
   server.tool(
     'search_entities',
-    'Full-text search across entity title and body ordered by BM25 relevance. Pass body_preview_chars to replace the full body with a preview (0–2000 chars) — recommended for wide queries to stay under the MCP 10k token response limit. Full bodies remain reachable via get_entity.',
+    'Full-text search (BM25) across entity title and body. If context is omitted, searches ALL accessible contexts — do not loop per-context. Defaults exclude eval snapshots (attributes.is_eval=true); pass include_eval=true to see them. Pass body_preview_chars for wide queries to stay under the MCP 10k token response limit. Full bodies remain reachable via get_entity.',
     {
-      query: z.string().min(1),
-      kind: z.string().optional(),
-      context: z.string().optional(),
+      query: z.string().min(1).describe('BM25 search query. Literal tokens only — no fuzzy matching, no synonyms yet. Typos return empty results.'),
+      kind: z.string().optional().describe('Filter by entity kind. Omit to include all kinds.'),
+      context: z.string().optional().describe('Filter by context namespace. Omit to search across all accessible contexts.'),
       limit: z.coerce.number().int().min(1).max(100).optional(),
       body_preview_chars: z.coerce.number().int().min(0).max(2000).optional().describe('Characters of body to include per result as body_preview. When set, body is replaced by body_preview + body_length + body_truncated (analogous to context_load). When unset, full bodies are returned (backward compatible). Set to 0 for metadata only.'),
+      attributes: z
+        .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+        .optional()
+        .describe('Exact-match filter on attribute values, AND\'d together. Example: {"priority":"high"}.'),
+      has_relation: z
+        .object({
+          relation: z.string(),
+          target_id: z.string().optional(),
+          direction: z.enum(['out', 'in', 'any']).optional(),
+        })
+        .optional()
+        .describe('Restrict to entities that currently have an active edge matching this relation.'),
+      include_eval: z
+        .boolean()
+        .optional()
+        .describe('Set true to include entities marked attributes.is_eval=true. Default false.'),
     },
-    async ({ query, kind, context, limit, body_preview_chars }) => {
+    async ({ query, kind, context, limit, body_preview_chars, attributes, has_relation, include_eval }) => {
       try {
         if (context) checkContext(scope, context);
         if (kind) checkKind(scope, kind);
-        let results = await entities.search(query, { kind, context, limit });
+        let results = await entities.search(query, {
+          kind,
+          context,
+          limit,
+          attributes,
+          has_relation,
+          exclude_eval: include_eval !== true,
+        });
         if (!context && scope.contexts && scope.contexts.length > 0) {
           const allowed = new Set(scope.contexts);
           results = results.filter((e) => allowed.has(e.context));
