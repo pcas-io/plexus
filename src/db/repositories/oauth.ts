@@ -415,35 +415,76 @@ export class OAuthRepository {
   }
 
   /**
-   * Delete oauth_clients rows that have no associated access tokens and
-   * were created more than `olderThanDays` days ago. Returns the number
-   * of rows removed.
+   * Delete oauth_clients rows that have no associated tokens (access or
+   * refresh) and were created more than `olderThanDays` days ago.
+   * Returns the number of rows removed.
    *
    * This is the DCR orphan cleanup from Security-Finding #23. Intended
    * to run once at startup and optionally on a daily timer.
+   *
+   * Two bugs fixed 2026-04-21 after a production incident where
+   * Claude.ai refresh_token grants failed with `client_id_not_found`:
+   *
+   *   1. Previous implementation used
+   *        `id NOT IN (SELECT VALUE client FROM oauth_access_tokens GROUP BY client)`
+   *      which is unreliable on SurrealDB v2 when the subquery returns
+   *      Thing-typed records — same quirk documented on
+   *      EntityRepository.findOrphans. Result: older clients were
+   *      classified as orphans even though they still had tokens, and
+   *      got deleted on every server restart.
+   *
+   *   2. The query only checked access_tokens. Clients whose access
+   *      tokens had expired but whose refresh tokens were still valid
+   *      got deleted anyway, stranding the client-side refresh_token.
+   *
+   * Fix: two-step lookup — fetch candidate client ids, fetch every
+   * client id referenced by access OR refresh tokens regardless of
+   * expiry (historical-use marker), compute the set difference in JS.
    */
   async cleanupOrphanedClients(olderThanDays = 7): Promise<number> {
     const days = Math.max(1, Math.floor(olderThanDays));
-    // Two-step: first find IDs, then delete. SurrealDB v2 does not
-    // support DELETE with a subquery-based WHERE elegantly, so we
-    // query first and delete in a second pass.
-    const result = await this.db.query<[Array<{ id: unknown }>]>(
-      `SELECT id FROM oauth_clients
-         WHERE created_at < time::now() - ${days}d
-           AND id NOT IN (SELECT VALUE client FROM oauth_access_tokens GROUP BY client)
-         ;`
+
+    // Step 1: fetch candidate client ids (old enough to be eligible for
+    // cleanup). We do not try to filter by token presence in this query
+    // — the NOT IN pattern is known-broken here.
+    const candidateResult = await this.db.query<[Array<{ id: unknown }>]>(
+      `SELECT id FROM oauth_clients WHERE created_at < time::now() - ${days}d;`
     );
-    const rows = result[0] ?? [];
-    if (rows.length === 0) return 0;
-    for (const row of rows) {
-      const id = normalizeThingId(row.id);
+    const candidates = (candidateResult[0] ?? []).map((r) => normalizeThingId(r.id));
+    if (candidates.length === 0) return 0;
+
+    // Step 2: collect every client id referenced by ANY token row,
+    // regardless of revoked_at / expires_at. A historical reference is
+    // still evidence that the client was used — we must not delete it
+    // because Claude.ai may still be holding a refresh_token for it.
+    const accessRefs = await this.db.query<[Array<{ client: unknown }>]>(
+      `SELECT client FROM oauth_access_tokens;`
+    );
+    const refreshRefs = await this.db.query<[Array<{ client: unknown }>]>(
+      `SELECT client FROM oauth_refresh_tokens;`
+    );
+    const referenced = new Set<string>();
+    for (const row of accessRefs[0] ?? []) {
+      const id = normalizeThingId(row.client);
+      if (id) referenced.add(id);
+    }
+    for (const row of refreshRefs[0] ?? []) {
+      const id = normalizeThingId(row.client);
+      if (id) referenced.add(id);
+    }
+
+    // Step 3: true orphans are candidates not referenced by any token.
+    const orphans = candidates.filter((id) => !referenced.has(id));
+    if (orphans.length === 0) return 0;
+
+    for (const id of orphans) {
       const raw = rawIdPart(id, 'oauth_clients');
       await this.db.query(
         `DELETE oauth_clients WHERE id = type::thing('oauth_clients', $raw);`,
         { raw }
       );
     }
-    return rows.length;
+    return orphans.length;
   }
 
   /**
