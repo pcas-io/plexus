@@ -184,19 +184,35 @@ claude mcp add plexus --transport http \
 
 ### Claude Desktop
 
-In `~/Library/Application Support/Claude/claude_desktop_config.json`:
+Two ways to wire it up. Pick whichever fits your setup.
+
+**Option A — Settings → Connectors (no Node.js, OAuth).** Claude Desktop → Settings → Connectors → **Add custom connector** → URL `https://<your-plexus-host>/mcp`. plexus handles OAuth automatically (one consent screen). This is the same path as Claude.ai web custom integrations and does **not** work with a plain `http://localhost` URL — Claude Desktop requires HTTPS for remote connectors, so put plexus behind a reverse proxy first.
+
+**Option B — `mcp-remote` bridge in `claude_desktop_config.json` (needs Node.js).** Works with any URL including `http://localhost:8787/mcp`. Config file location:
+
+| OS | Path |
+|---|---|
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
 
 ```json
 {
   "mcpServers": {
     "plexus": {
-      "type": "http",
-      "url": "https://<your-plexus-host>/mcp",
-      "headers": { "Authorization": "Bearer pt_YOUR_TOKEN" }
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote",
+        "http://localhost:8787/mcp",
+        "--header", "Authorization: Bearer pt_YOUR_TOKEN"
+      ]
     }
   }
 }
 ```
+
+Quit Claude Desktop fully (system tray on Windows, `Cmd-Q` on macOS — closing the window keeps it running) and relaunch.
+
+> The `claude_desktop_config.json` schema only accepts stdio servers (`command` + `args`). Fields like `"type": "http"` or `"url"` at this level are rejected as invalid — that's a JSON-config-only restriction, not an MCP one. Use the Connectors UI for direct HTTP, or the bridge above to keep it in JSON.
 
 ---
 
@@ -593,6 +609,85 @@ For Coolify hosts, stack the Coolify overlay on top to attach the external `cool
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.coolify.yml up -d
 ```
+
+### Windows 11 (Docker Desktop + Claude Desktop)
+
+End-to-end on a clean Windows 11 box: plexus running in Docker Desktop, wired into the Claude Desktop app over MCP.
+
+**Prerequisites**
+
+- [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/) with the WSL 2 backend enabled (default since 2024).
+- [Git for Windows](https://git-scm.com/download/win) — ships **Git Bash** and `openssl`, both needed for `scripts/bootstrap_env.sh`. PowerShell alone won't do.
+- [Claude Desktop for Windows](https://claude.ai/download).
+- [Node.js for Windows](https://nodejs.org/en/download) — needed only for the `mcp-remote` bridge in step 4. Skip if you'll put plexus behind HTTPS and use Claude Desktop's Connectors UI instead.
+
+**1. Clone and bootstrap secrets**
+
+In **Git Bash** (not PowerShell — the bootstrap script is a bash script and needs `openssl`):
+
+```bash
+git clone https://github.com/pcas-io/plexus.git
+cd plexus
+scripts/bootstrap_env.sh
+```
+
+This writes `.env` with fresh 32-byte secrets for `PLEXUS_ADMIN_TOKEN`, `PLEXUS_OAUTH_SECRET`, `PLEXUS_COOKIE_SECRET`, and `PLEXUS_SURREAL_PASS`.
+
+**2. Start the stack**
+
+Either shell works for `docker compose`:
+
+```powershell
+docker compose up -d
+docker compose logs -f plexus
+```
+
+Docker Desktop maps the worker to `127.0.0.1:8787` on the Windows host. Open `http://localhost:8787` in your browser.
+
+**3. Read your admin token**
+
+```powershell
+Select-String -Path .env -Pattern '^PLEXUS_ADMIN_TOKEN='
+```
+
+Copy the hex value and walk the [bootstrap flow](#create-your-admin-user-first-run) — paste the admin token, create the admin user, register a passkey (Windows Hello works), copy the rotated `pt_…` token. Save it; you'll paste it into Claude Desktop next.
+
+**4. Wire Claude Desktop to plexus**
+
+The `claude_desktop_config.json` schema only accepts stdio servers, so a plain `localhost` HTTP URL has to go through the `mcp-remote` bridge. Open the config (create the file if it doesn't exist):
+
+```powershell
+notepad "$env:APPDATA\Claude\claude_desktop_config.json"
+```
+
+```json
+{
+  "mcpServers": {
+    "plexus": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote",
+        "http://localhost:8787/mcp",
+        "--header", "Authorization: Bearer pt_YOUR_TOKEN"
+      ]
+    }
+  }
+}
+```
+
+Save, then **fully quit Claude Desktop** from the system-tray icon (closing the window leaves it running) and relaunch. The plexus tools (`save_entity`, `search_entities`, `context_load`, …) will appear in the tool list.
+
+> Alternative without Node.js: put plexus behind HTTPS (Caddy/Traefik) and add it via Claude Desktop → Settings → Connectors → **Add custom connector**. Connectors require HTTPS and won't accept `http://localhost`.
+
+**5. Smoke-test**
+
+In a new Claude Desktop chat: *"Call `context_load` on plexus and tell me what you see."* You should get back the empty kind/relation registries plus an empty recent-entities list. From there, paste the [agent system-prompt template](#agent-system-prompt-template) into your project instructions and you're done.
+
+**Notes**
+
+- `http://localhost` (plain HTTP) is fine here because plexus is bound to the loopback interface on the host. The `Secure` cookie warning only matters once you put plexus behind a public hostname — at that point, switch the URL in `claude_desktop_config.json` to `https://<your-host>/mcp`.
+- If Claude Desktop reports the server as unreachable, check `docker compose ps` — the `plexus` container should be `Up` and `healthy`. Restart Docker Desktop if WSL 2 went to sleep.
+- Token rotates exactly once on first passkey enrollment. If you skip that and reuse the original `pt_…`, plexus will reject it on `/mcp`.
 
 ### Behind a reverse proxy
 
